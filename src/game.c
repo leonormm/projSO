@@ -72,26 +72,10 @@ int play_board(board_t * game_board) {
 }
 
 int main(int argc, char** argv) {
-    if (argc > 2) {
-        const char *u1 = "Usage: ";
-        write(STDERR_FILENO, u1, strlen(u1));
-        write(STDERR_FILENO, argv[0], strlen(argv[0]));
-        write(STDERR_FILENO, " [level_directory]\n", 19);
-        return 1;
-    }
-
     if (argc == 2) {
         const char *dirpath = argv[1];
         DIR *dirp = opendir(dirpath);
-        if (dirp == NULL) {
-            const char *err = "erro ao abrir diretorio: ";
-            write(STDERR_FILENO, err, strlen(err));
-            write(STDERR_FILENO, dirpath, strlen(dirpath));
-            write(STDERR_FILENO, "\n", 1);
-        } else {
-            const char *ok = "diretorio aberto\n";
-            write(STDOUT_FILENO, ok, strlen(ok));
-
+        if (dirp != NULL) {
             struct dirent *dp;
             while ((dp = readdir(dirp)) != NULL) {
                 if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
@@ -116,21 +100,9 @@ int main(int argc, char** argv) {
                 strcat(path, dp->d_name);
 
                 int fd = open(path, O_RDONLY);
-                if (fd < 0) {
-                    const char *pfail = "erro ao abrir ficheiro: ";
-                    write(STDERR_FILENO, pfail, strlen(pfail));
-                    write(STDERR_FILENO, path, strlen(path));
-                    write(STDERR_FILENO, "\n", 1);
-                    free(path);
-                    continue;
+                if (fd >= 0) {
+                    close(fd);
                 }
-
-                const char *fok = "ficheiro .lvl aberto: ";
-                write(STDOUT_FILENO, fok, strlen(fok));
-                write(STDOUT_FILENO, path, strlen(path));
-                write(STDOUT_FILENO, "\n", 1);
-
-                close(fd);
                 free(path);
             }
 
@@ -150,7 +122,7 @@ int main(int argc, char** argv) {
     board_t game_board;
 
     while (!end_game) {
-        load_level(&game_board, accumulated_points);
+        load_level(&game_board, accumulated_points); //ESTE É O AUTOMATICO
         draw_board(&game_board, DRAW_MENU);
         refresh_screen();
 
