@@ -72,43 +72,69 @@ int play_board(board_t * game_board) {
 }
 
 int main(int argc, char** argv) {
-    if (argc != 2) {
-        printf("Usage: %s <level_directory>\n", argv[0]);
-        // TODO receive inputs
-        DIR *dirp;
-        struct dirent *dp;
+    if (argc > 2) {
+        const char *u1 = "Usage: ";
+        write(STDERR_FILENO, u1, strlen(u1));
+        write(STDERR_FILENO, argv[0], strlen(argv[0]));
+        write(STDERR_FILENO, " [level_directory]\n", 19);
+        return 1;
+    }
+
+    if (argc == 2) {
         const char *dirpath = argv[1];
-        dirp = opendir(dirpath);
-        if (dirp != NULL) {
-            for (;;) {
-                dp = readdir(dirp);
-                if (dp == NULL)
-                    break;
-                /* skip "."*/
-                if (strcmp(dp->d_name, ".") == 0)
+        DIR *dirp = opendir(dirpath);
+        if (dirp == NULL) {
+            const char *err = "erro ao abrir diretorio: ";
+            write(STDERR_FILENO, err, strlen(err));
+            write(STDERR_FILENO, dirpath, strlen(dirpath));
+            write(STDERR_FILENO, "\n", 1);
+        } else {
+            const char *ok = "diretorio aberto\n";
+            write(STDOUT_FILENO, ok, strlen(ok));
+
+            struct dirent *dp;
+            while ((dp = readdir(dirp)) != NULL) {
+                if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
                     continue;
 
-                /* check extension */
                 const char *ext = strrchr(dp->d_name, '.');
-                if (!ext || strcmp(ext, ".lvl") != 0)
-                    continue;
+                if (!ext) continue;
+                if (strcmp(ext, ".lvl") != 0) continue;
 
-                /* build full path and open the file */
-                char filepath[4096];
-                snprintf(filepath, sizeof(filepath), "%s/%s", dirpath, dp->d_name);
+                size_t dlen = strlen(dirpath);
+                size_t nlen = strlen(dp->d_name);
+                size_t need = dlen + 1 + nlen + 1;
+                char *path = malloc(need);
+                if (!path) continue;
+                strcpy(path, dirpath);
+                if (dlen == 0 || dirpath[dlen-1] != '/') {
+                    path[dlen] = '/';
+                    path[dlen+1] = '\0';
+                } else {
+                    path[dlen] = '\0';
+                }
+                strcat(path, dp->d_name);
 
-                int fd = open(filepath, O_RDONLY);
+                int fd = open(path, O_RDONLY);
                 if (fd < 0) {
-                    perror(filepath);
+                    const char *pfail = "erro ao abrir ficheiro: ";
+                    write(STDERR_FILENO, pfail, strlen(pfail));
+                    write(STDERR_FILENO, path, strlen(path));
+                    write(STDERR_FILENO, "\n", 1);
+                    free(path);
                     continue;
                 }
 
-                /* process the .lvl file here */
-                // e.g. load_level_from_file(f);
+                const char *fok = "ficheiro .lvl aberto: ";
+                write(STDOUT_FILENO, fok, strlen(fok));
+                write(STDOUT_FILENO, path, strlen(path));
+                write(STDOUT_FILENO, "\n", 1);
 
                 close(fd);
-                    continue;
+                free(path);
             }
+
+            closedir(dirp);
         }
     }
 

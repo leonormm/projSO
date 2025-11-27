@@ -23,6 +23,10 @@ board.o = board.h
 vpath %.o $(OBJ_DIR)
 vpath %.c $(SRC_DIR)
 
+# Support calling: make run /path/to/dir  (treat extra goal as DIR)
+DIR_GOAL := $(filter-out run,$(MAKECMDGOALS))
+.PHONY: $(DIR_GOAL)
+
 # Make targets
 all: pacmanist
 
@@ -36,8 +40,11 @@ $(BIN_DIR)/$(TARGET): $(OBJS) | folders
 	$(CC) -I $(INCLUDE_DIR) $(CFLAGS) -o $(OBJ_DIR)/$@ -c $<
 
 # run the program
+# Usage:
+#  - `make run` runs without args
+#  - `make run DIR=/path/to/dir` runs and passes the directory as argv[1]
 run: pacmanist
-	@./$(BIN_DIR)/$(TARGET)
+	@./$(BIN_DIR)/$(TARGET) $(if $(DIR_GOAL),$(lastword $(DIR_GOAL)),$(DIR))
 
 # Create folders
 folders:
