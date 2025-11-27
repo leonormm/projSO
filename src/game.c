@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
+#include <dirent.h>
+#include <fcntl.h>
+//#include <stddef.h>
 
 #define CONTINUE_PLAY 0
 #define NEXT_LEVEL 1
@@ -71,6 +74,42 @@ int main(int argc, char** argv) {
     if (argc != 2) {
         printf("Usage: %s <level_directory>\n", argv[0]);
         // TODO receive inputs
+        DIR *dirp;
+        struct dirent *dp;
+        const char *dirpath = argv[2];
+        dirp = opendir(dirpath);
+        if (dirp == NULL) {
+            //nivel automático
+            return;
+        }
+        for (;;) {
+            dp = readdir(dirp);
+            if (dp == NULL)
+                break;
+            /* skip "."*/
+            if (strcmp(dp->d_name, ".") == 0)
+                continue;
+
+            /* check extension */
+            const char *ext = strrchr(dp->d_name, '.');
+            if (!ext || strcmp(ext, ".lvl") != 0)
+                continue;
+
+            /* build full path and open the file */
+            char filepath[4096];
+            snprintf(filepath, sizeof(filepath), "%s/%s", dirpath, dp->d_name);
+
+            int fd = open(filepath, O_RDONLY);
+            if (fd < 0) {
+                perror(filepath);
+                continue;
+            }
+
+            /* process the .lvl file here */
+            // e.g. load_level_from_file(f);
+
+            close(fd);
+                continue;
     }
 
     // Random seed for any random movements
