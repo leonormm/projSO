@@ -4,7 +4,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <stdarg.h>
-
+#include <string.h>
 #include <fcntl.h>
 
 #define STRIDE 128
@@ -346,6 +346,12 @@ int load_pacman(board_t* board, int points) {
     return 0;
 }
 
+// Loading from file
+//TODO
+/*int load_pacman_file(board_t* board, const char* filepath) {
+    return 0;
+}*/
+
 // Static Loading
 int load_ghost(board_t* board) {
     // Ghost 0
@@ -379,6 +385,13 @@ int load_ghost(board_t* board) {
     return 0;
 }
 
+// Loading from file
+//TODO
+/*int load_ghost_file(board_t* board, const char* filepath, int ghost_index) {
+    return 0;
+}*/
+
+// Static Loading
 int load_level(board_t *board, int points) {
     board->height = 5;
     board->width = 10;
@@ -396,7 +409,7 @@ int load_level(board_t *board, int points) {
     for (int i = 0; i < board->height; i++) {
         for (int j = 0; j < board->width; j++) {
             if (i == 0 || j == 0 || j == (board->width - 1)) {
-                board->board[i * board->width + j].content = 'W';
+                board->board[i * board->width + j].content = 'W'; 
             }
             else if (i == 4 && j == 8) {
                 board->board[i * board->width + j].content = ' ';
@@ -415,25 +428,137 @@ int load_level(board_t *board, int points) {
     return 0;
 }
 
-//load level from file
-int load_level_file(board_t *board, const char *filepath, int points) {
-    char* file_content = read_file(filepath);
-    if (file_content == NULL) {
-        return -1;
-    }
 
-    char* line = strtok(file_content, "\n");
+/**
+ * Loads a level from file into board
+ * filepath - path to level file
+ * max_files - maximum number of .m files in dir to load + 1 for pacman file
+ * points - accumulated points from previous levels
+ * Returns 0 on success, -1 on failure
+ */
+int load_level_file(board_t *board, const char *filepath, int max_files_to_load, int points) {
+    /**load_level_file -> read_file -> parse_line does:
+     * board->height
+     * board->width
+     * board->tempo
+     * board->n_pacmans
+     * board->n_ghosts
+     * board->board (content, has_dot, has_portal)
+     * calls:
+     * load_pacman_file
+     * load_ghost_file
+     */
+
+    //TODO passar read_file para aqui
+    //files_to_load will contain all files to load: pacman first (if it exists), then ghosts
+    char *files_to_load[max_files_to_load];
+    *files_to_load = read_file((char*)filepath, board, max_files_to_load);
+    /* TODO ver pq é que ele só compila se eu comentar esta parte
+    if (files_to_load == NULL) {
+        return -1;
+    }*/
+    // If there is a pacman file, load it
+    if (board->n_pacmans > 0) {
+        //load_pacman_file(board, files_to_load[0]); //TODO (para compilar tive de os comentar)
+        load_pacman(board, points);
+    }
+    // Load ghost files
+    for (int i = 0; i < board->n_ghosts; i++) {
+        //load_ghost_file(board, files_to_load[i + board->n_pacmans], i); //TODO (para compilar tive de os comentar)
+        load_ghost(board);
+    }
+    return 0;
+}
+
+char* read_file(char* filepath, board_t *board, int max_files_to_load) {
+    char *files_to_load[max_files_to_load];
+    int index = 0;
+    // Open the level file for reading
+    int fd = open(filepath, O_RDONLY);
+    if (fd < 0) {
+        perror("Failed to open level file");
+        return NULL;
+    }
+    // Allocate memory for file content
+    char *file_content = malloc(STRIDE);
+    if (!file_content) {
+        perror("Failed to allocate memory");
+        close(fd);
+        return NULL;
+    }
+    ssize_t bytes_read;
+    size_t total_read = 0;
+    // Read the file content
+    while ((bytes_read = read(fd, file_content + total_read, STRIDE - total_read)) > 0) {
+        total_read += bytes_read;
+        if (total_read >= STRIDE) {
+            // Resize if necessary
+            char *new_content = realloc(file_content, total_read + STRIDE);
+            if (!new_content) {
+                perror("Failed to reallocate memory");
+                free(file_content);
+                close(fd);
+                return NULL;
+            }
+            file_content = new_content;
+        }
+    }
+    if (bytes_read < 0) {
+        perror("Failed to read level file");
+        free(file_content);
+        close(fd);
+        return NULL;
+    }
+    file_content[total_read] = '\0';
+    // Process the file content to build the level
+    char *line = strtok(file_content, "\n");
     while (line != NULL) {
-        if (line[0] != '#') {
-            // Process the line (e.g., parse it and update the board)
-            // Example: parse_line(board, line);
+        if (line[0] != '#' && line[0] != '\0') {
+            files_to_load[index++] = parse_line(board, line, max_files_to_load);
         }
         line = strtok(NULL, "\n");
     }
+    free(file_content);
+    close(fd);
+    return *files_to_load;
 
-    free(file_content); 
-    return 0;
 }
+
+char* parse_line(board_t *board, char *line, int max_files_to_load) {
+    char *files_to_load[max_files_to_load];
+    int index = 0;
+    int n_pacmans = 0;
+    if (strncmp(line, "DIM", 3) == 0) {
+        sscanf(line + 4, "%d %d", &board->height, &board->width);
+    } else if (strncmp(line, "TEMPO", 5) == 0) {
+        sscanf(line + 6, "%d", &board->tempo);
+    } else if (strncmp(line, "PAC", 3) == 0) {
+        char *token = strtok(line + 4, " ");
+        index = 0;
+        while (token != NULL && index) { //There should be just 1 pacman
+            files_to_load[index++] = strdup(token);
+            token = strtok(NULL, " ");
+        }
+        board->n_pacmans = n_pacmans = index; // Update the number of pacmans
+    } else if (strncmp(line, "MON", 3) == 0) {
+        char *token = strtok(line + 4, " ");
+        while (token != NULL) {
+            files_to_load[index++] = strdup(token); // Store each filename
+            token = strtok(NULL, " ");
+        }
+        board->n_ghosts = index - n_pacmans; // Update the number of ghosts
+    } else {
+        // Assume it's board content
+        //TODO parse board content
+        if (!board->board) {
+            board->board = malloc(board->width * board->height * sizeof(board_pos_t));
+        }
+    }
+    
+    return *files_to_load;
+}
+
+
 
 void unload_level(board_t * board) {
     free(board->board);
