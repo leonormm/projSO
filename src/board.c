@@ -415,6 +415,26 @@ int load_level(board_t *board, int points) {
     return 0;
 }
 
+//load level from file
+int load_level_file(board_t *board, const char *filepath, int points) {
+    char* file_content = read_file(filepath);
+    if (file_content == NULL) {
+        return -1;
+    }
+
+    char* line = strtok(file_content, "\n");
+    while (line != NULL) {
+        if (line[0] != '#') {
+            // Process the line (e.g., parse it and update the board)
+            // Example: parse_line(board, line);
+        }
+        line = strtok(NULL, "\n");
+    }
+
+    free(file_content); 
+    return 0;
+}
+
 void unload_level(board_t * board) {
     free(board->board);
     free(board->pacmans);
@@ -484,52 +504,4 @@ void print_board(board_t *board) {
     debug("%s", buffer);
 }
 
-//funçoes auxiliares
-int load_level_file(board_t *board, const char *filepath, int points) {
-    char* file_content = read_file(filepath);
-    if (file_content == NULL) {
-        return -1;
-    }
 
-    char* line = strtok(file_content, "\n");
-    while (line != NULL) {
-        if (line[0] != '#') {
-            // Process the line (e.g., parse it and update the board)
-            // Example: parse_line(board, line);
-        }
-        line = strtok(NULL, "\n");
-    }
-
-    free(file_content); 
-    return 0;
-}
-
-
-char* read_file(char* filename) {
-    int fd = open(filename, O_RDONLY);
-
-    if (fd < 0) {
-        perror("open error");
-        return EXIT_FAILURE;
-    }
-
-    char buffer[STRIDE + 1];
-
-    int done = 0;
-    while (done < STRIDE) {
-        int bytes_read = read(fd, buffer + done, STRIDE - done);
-
-        if (bytes_read < 0) {
-            perror("read error");
-            return EXIT_FAILURE;
-        }
-        if (bytes_read == 0) {
-            break;
-        }
-
-        done += bytes_read;
-    }
-    
-    close(fd);
-    return buffer;
-}

@@ -13,6 +13,7 @@
 #define QUIT_GAME 2
 #define LOAD_BACKUP 3
 #define CREATE_BACKUP 4
+#define STRIDE 128
 
 void screen_refresh(board_t * game_board, int mode) {
     debug("REFRESH\n");
@@ -71,42 +72,165 @@ int play_board(board_t * game_board) {
     return CONTINUE_PLAY;  
 }
 
+char* parse_line(board_t *board, char *line, int max_files, int max_pacmans) {
+    char *files_to_open[max_files];
+    int index = 0;
+    int n_pacmans = 0;
+    if (strncmp(line, "DIM", 3) == 0) {
+        sscanf(line + 4, "%d %d", &board->height, &board->width);
+    } else if (strncmp(line, "TEMPO", 5) == 0) {
+        sscanf(line + 6, "%d", &board->tempo);
+    } else if (strncmp(line, "PAC", 3) == 0) {
+        char *token = strtok(line + 4, " ");
+        while (token != NULL && index < max_pacmans) { // Assuming MAX_PACMANS is defined
+            files_to_open[index++] = strdup(token); // Store each filename
+            token = strtok(NULL, " ");
+        }
+        board->n_pacmans = n_pacmans = index; // Update the number of pacmans
+    } else if (strncmp(line, "MON", 3) == 0) {
+        char *token = strtok(line + 4, " ");
+        while (token != NULL) {
+            files_to_open[index++] = strdup(token); // Store each filename
+            token = strtok(NULL, " ");
+        }
+        board->n_ghosts = index - n_pacmans; // Update the number of ghosts
+    } else {
+        //ver isto
+        board->board = malloc(board->width * board->height * sizeof(board_pos_t));
+    }
+    
+    return *files_to_open;
+}
+
+char* read_file(char* filepath, board_t *board, int max_files, int max_pacmans) {
+    // Open the level file for reading
+    int fd = open(filepath, O_RDONLY);
+    if (fd < 0) {
+        perror("Failed to open level file");
+        return NULL;
+    }
+
+    // Allocate memory for file content
+    char *file_content = malloc(STRIDE);
+    if (!file_content) {
+        perror("Failed to allocate memory");
+        close(fd);
+        return NULL;
+    }
+
+    ssize_t bytes_read;
+    size_t total_read = 0;
+
+    // Read the file content
+    while ((bytes_read = read(fd, file_content + total_read, STRIDE - total_read)) > 0) {
+        total_read += bytes_read;
+        if (total_read >= STRIDE) {
+            // Resize if necessary
+            char *new_content = realloc(file_content, total_read + STRIDE);
+            if (!new_content) {
+                perror("Failed to reallocate memory");
+                free(file_content);
+                close(fd);
+                return NULL;
+            }
+            file_content = new_content;
+        }
+    }
+
+    if (bytes_read < 0) {
+        perror("Failed to read level file");
+        free(file_content);
+        close(fd);
+        return NULL;
+    }
+
+    // Process the file content to build the level
+    char *line = strtok(file_content, "\n");
+    while (line != NULL) {
+        if (line[0] != '#') {
+            parse_line(board, line, max_files, max_pacmans);
+        }
+        line = strtok(NULL, "\n");
+    }
+
+    free(file_content);
+    close(fd);
+    return NULL;
+
+}
+
+
 int main(int argc, char** argv) {
+    board_t game_board;
+
     if (argc == 2) {
         const char *dirpath = argv[1];
         DIR *dirp = opendir(dirpath);
         if (dirp != NULL) {
+            int cnt_files = 0;
+            int cnt_pacman = 0;
+            int cnt_lvl = 0;
             struct dirent *dp;
+
+            // First pass: count files
             while ((dp = readdir(dirp)) != NULL) {
                 if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
                     continue;
 
                 const char *ext = strrchr(dp->d_name, '.');
                 if (!ext) continue;
-                if (strcmp(ext, ".lvl") != 0) continue;
 
-                size_t dlen = strlen(dirpath);
-                size_t nlen = strlen(dp->d_name);
-                size_t need = dlen + 1 + nlen + 1;
-                char *path = malloc(need);
-                if (!path) continue;
-                strcpy(path, dirpath);
-                if (dlen == 0 || dirpath[dlen-1] != '/') {
-                    path[dlen] = '/';
-                    path[dlen+1] = '\0';
-                } else {
-                    path[dlen] = '\0';
+                if (strcmp(ext, ".lvl") == 0) {
+                    cnt_lvl++;
+                } else if (strcmp(ext, ".p") == 0) {
+                    cnt_pacman++;
                 }
-                strcat(path, dp->d_name);
-
-                int fd = open(path, O_RDONLY);
-                if (fd >= 0) {
-                    close(fd);
-                }
-                free(path);
+                cnt_files++;
             }
 
             closedir(dirp);
+
+            if (cnt_lvl == 0) {
+                fprintf(stderr, "No .lvl files found in the directory.\n");
+                return EXIT_FAILURE;
+            }
+            if (cnt_pacman > cnt_lvl) {
+                fprintf(stderr, "More .p files than .lvl files found in the directory.\n");
+                return EXIT_FAILURE;
+            }
+
+            // Now we can read the files
+            dirp = opendir(dirpath);
+            if (dirp != NULL) {
+                while ((dp = readdir(dirp)) != NULL) {
+                    if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
+                        continue;
+
+                    const char *ext = strrchr(dp->d_name, '.');
+                    if (!ext) continue;
+
+                    size_t dlen = strlen(dirpath);
+                    size_t nlen = strlen(dp->d_name);
+                    size_t need = dlen + 1 + nlen + 1;
+                    char *path = malloc(need);
+                    if (!path) continue;
+                    strcpy(path, dirpath);
+                    if (dlen == 0 || dirpath[dlen-1] != '/') {
+                        path[dlen] = '/';
+                        path[dlen+1] = '\0';
+                    } else {
+                        path[dlen] = '\0';
+                    }
+                    strcat(path, dp->d_name);
+
+                    if (strcmp(ext, ".lvl") == 0) {
+                        read_file(path, &game_board, cnt_files, cnt_pacman);
+                    }
+
+                    free(path);
+                }
+                closedir(dirp);
+            }
         }
     }
 
@@ -119,7 +243,7 @@ int main(int argc, char** argv) {
     
     int accumulated_points = 0;
     bool end_game = false;
-    board_t game_board;
+    
 
     while (!end_game) {
         load_level(&game_board, accumulated_points); //ESTE É O AUTOMATICO
