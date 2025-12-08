@@ -156,9 +156,10 @@ int main(int argc, char** argv) {
 
                     if (strcmp(ext, ".lvl") == 0) {
                         lvl_paths[index_lp++] = path;
+                    } else {
+                        // If it's a .p or .m file, we can ignore it for now
+                        free(path);
                     }
-
-                    free(path);
                 }
                 closedir(dirp);
             }
