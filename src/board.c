@@ -336,6 +336,33 @@ void kill_pacman(board_t* board, int pacman_index) {
     pac->alive = 0;
 }
 
+
+char* parse_line_creature(char *line, board_t *board) {
+    
+    if (strcmp(line, "PASSO", 5) == 0) {
+        sscanf(line + 6, "%d");
+    } else if (strncmp(line, "POS", 3) == 0) {
+        sscanf(line + 4, "%d %d", &creature->pos_x, &creature->pos_y);
+    } else if (strncmp(line, "MOVES", 5) == 0) {
+        char *token = strtok(line + 6, " ");
+        int index = 0;
+        while (token != NULL && index < MAX_MOVES) {
+            char cmd;
+            int turns;
+            sscanf(token, "%c%d", &cmd, &turns);
+            creature->moves[index].command = cmd;
+            creature->moves[index].turns = turns;
+            creature->moves[index].turns_left = turns; // Initialize turns_left
+            index++;
+            token = strtok(NULL, " ");
+        }
+        creature->n_moves = index; // Update the number of moves    
+    }
+
+
+}
+
+
 // Static Loading
 int load_pacman(board_t* board, int points) {
     board->board[1 * board->width + 1].content = 'P'; // Pacman
@@ -348,9 +375,10 @@ int load_pacman(board_t* board, int points) {
 
 // Loading from file
 //TODO
-/*int load_pacman_file(board_t* board, const char* filepath) {
+int load_pacman_file(board_t* board, const char* filepath) {
+    char* buffer = read_file((char*)filepath, board, -1);
     return 0;
-}*/
+}
 
 // Static Loading
 int load_ghost(board_t* board) {
@@ -387,9 +415,10 @@ int load_ghost(board_t* board) {
 
 // Loading from file
 //TODO
-/*int load_ghost_file(board_t* board, const char* filepath, int ghost_index) {
+int load_ghost_file(board_t* board, const char* filepath, int ghost_index) {
+    char* buffer = read_file((char*)filepath, board, -1);
     return 0;
-}*/
+}
 
 // Static Loading
 int load_level(board_t *board, int points) {
@@ -458,20 +487,27 @@ int load_level_file(board_t *board, const char *filepath, int max_files_to_load,
         return -1;
     }*/
     // If there is a pacman file, load it
+    int mon_index = 0;
     if (board->n_pacmans > 0) {
-        //load_pacman_file(board, files_to_load[0]); //TODO (para compilar tive de os comentar)
-        load_pacman(board, points);
+        mon_index = 1;
+        load_pacman_file(board, files_to_load[0]); //TODO (para compilar tive de os comentar)
+    } else {
+        load_pacman(board, points); // Load default pacman
     }
     // Load ghost files
-    for (int i = 0; i < board->n_ghosts; i++) {
-        //load_ghost_file(board, files_to_load[i + board->n_pacmans], i); //TODO (para compilar tive de os comentar)
-        load_ghost(board);
+    for (mon_index; mon_index < board->n_ghosts; mon_index++) {
+        load_ghost_file(board, files_to_load[mon_index + board->n_pacmans], mon_index); //TODO (para compilar tive de os comentar)
     }
+    sprintf(board->level_name, "Loaded Level from %s", &filepath);
     return 0;
 }
 
 char* read_file(char* filepath, board_t *board, int max_files_to_load) {
-    char *files_to_load[max_files_to_load];
+    char* files_to_load[MAX_MOVES + 3]; // MAX_MOVES + PASSO + POS X Y
+    if (max_files_to_load != -1) {
+        files_to_load[max_files_to_load];
+    }
+    
     int index = 0;
     // Open the level file for reading
     int fd = open(filepath, O_RDONLY);
@@ -511,10 +547,15 @@ char* read_file(char* filepath, board_t *board, int max_files_to_load) {
     }
     file_content[total_read] = '\0';
     // Process the file content to build the level
+    board->current_line = 0;
     char *line = strtok(file_content, "\n");
     while (line != NULL) {
         if (line[0] != '#' && line[0] != '\0') {
-            files_to_load[index++] = parse_line(board, line, max_files_to_load);
+            if (max_files_to_load == -1) {
+                files_to_load[index++] = parse_line_creature(board, line);
+            } else {
+                files_to_load[index++] = parse_line(board, line, max_files_to_load);
+            }
         }
         line = strtok(NULL, "\n");
     }
@@ -552,6 +593,20 @@ char* parse_line(board_t *board, char *line, int max_files_to_load) {
         //TODO parse board content
         if (!board->board) {
             board->board = malloc(board->width * board->height * sizeof(board_pos_t));
+        }
+        //construir nivel linha a linha
+        for (int i = 0; i < board->width; i++) {
+            char current_char = line[board->current_line++];
+            board->board[(board->height - 1) * board->width + i].content = current_char;
+            if (current_char == 'X') {
+                board->board[(board->height - 1) * board->width + i].content = 'W';
+            } else if (current_char == 'o') {
+                board->board[(board->height - 1) * board->width + i].has_dot = 1;
+                board->board[(board->height - 1) * board->width + i].content = ' ';
+            } else if (current_char == '@') {
+                board->board[(board->height - 1) * board->width + i].has_portal = 1;
+                board->board[(board->height - 1) * board->width + i].content = ' ';
+            }
         }
     }
     
