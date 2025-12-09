@@ -350,27 +350,21 @@ int load_pacman(board_t* board, int points) {
 /**
  * Loads a pacman from file, by reading the file and parsing its content from the buffer
  */
-int load_pacman_file(board_t* board, const char* filepath) {
-    board->pacmans[0].n_moves = board->cnt_moves;
-    char* buffer[MAX_MOVES + 3];
-    *buffer = read_file((char*)filepath, board, -1);
+int load_pacman_file(board_t* board, const char* filepath, int points) {
+    debug("cehguei aqui\n");
+    
+    char* buffer = read_file((char*)filepath, board, -1);
+    if (buffer == NULL || buffer[0] == '\0') {
+        debug("tou aqui");
+        load_pacman(board, points);
+    }
+    debug("sai daqui\n");
     //buffer[0] -> passo
     //buffer[1] -> pos_x
     //buffer[2] -> pos_y
     //buffer[3..] -> moves
-    board->pacmans[0].passo = atoi(buffer[0]);
-    board->pacmans[0].pos_x = atoi(buffer[1]);
-    board->pacmans[0].pos_y = atoi(buffer[2]);
-    board->board[board->pacmans[0].pos_y * board->width + board->pacmans[0].pos_x].content = 'P';
-    board->pacmans[0].alive = 1;
-    board->pacmans[0].points = 0;
-    board->pacmans[0].waiting = board->pacmans[0].passo;
-    board->pacmans[0].current_move = 0;
-    for (int i = 0; i < board->pacmans[0].n_moves; i++) {
-        board->pacmans[0].moves[i].command = buffer[3 + i][0];
-        board->pacmans[0].moves[i].turns = 1; // Default 1 turn per move
-    }
-    load_pacman(board, 0);
+
+    
     return 0;
 }
 
@@ -428,7 +422,6 @@ int load_ghost_file(board_t* board, const char* filepath, int ghost_index) {
         board->ghosts[ghost_index].moves[i].command = buffer[3 + i][0];
         board->ghosts[ghost_index].moves[i].turns = 1; // Default 1 turn per move
     }
-    load_ghost(board);
     return 0;
 }
 
@@ -480,22 +473,17 @@ int load_level_file(board_t *board, const char *filepath, int max_files_to_load,
     debug("Level file read completed.\n");
     // If there is a pacman file, load it
     int mon_index = 0;
-    if (board->n_pacmans > 0) {
-        mon_index = 1;
-        char pacman_path[256];
-        snprintf(pacman_path, sizeof(pacman_path), "%s/%s", filepath, files_to_load[0]);
-        debug("Loading pacman from file: %s\n", pacman_path);
-        load_pacman_file(board, pacman_path);
-        debug("Pacman loaded at position (%d, %d) with %d moves\n", board->pacmans[0].pos_x, board->pacmans[0].pos_y, board->pacmans[0].n_moves);
-    } else {
-        load_pacman(board, points); // Load default pacman
-    }
+    mon_index = 1;
+    debug("Pacman file to load: %s\n", board->pacman_file);
+    load_pacman_file(board, board->pacman_file, points);
+    debug("Pacman loaded at position (%d, %d) with %d moves\n", board->pacmans[0].pos_x, board->pacmans[0].pos_y, board->pacmans[0].n_moves);
+    debug("Pacman loading completed.\n");
     // Load ghost files
     board->n_ghosts = max_files_to_load - mon_index;
     for (int i = mon_index; i < max_files_to_load; i++) {
-        char ghost_path[256];
-        snprintf(ghost_path, sizeof(ghost_path), "%s/%s", filepath, files_to_load[i]);
-        load_ghost_file(board, ghost_path, i - mon_index);
+        debug("Loading ghost %d from file: %s\n", i - mon_index, files_to_load[i]);
+        debug("ghost files %s\n", board->ghosts_files);
+        load_ghost_file(board, "1.m", i - mon_index);
     }
     sprintf(board->level_name, "Loaded Level from %s", basename((char*)filepath));
     return 0;
@@ -564,21 +552,23 @@ char* read_file(char* filepath, board_t *board, int max_files_to_load) {
     // Process the file content to build the level or creature buffer
     board->current_board_line = 0;
     board->cnt_moves = 0;
-    char *line = strtok(file_content, "\n");
+    char *saveptr;
+    char *line = strtok_r(file_content, "\n", &saveptr);
     
     while (line != NULL) {
         debug("Processing line: %s\n", line);
+        debug("max_files_to_load: %d\n", max_files_to_load);
         if (line[0] != '#' && line[0] != '\0') {
             //debug("Parsing line: %s\n", line);
             if (max_files_to_load == -1) {
                 return_vector[index++] = parse_line_creature(board, line); //return_vector is crature buffer
             } else {
                 debug("Line: %s is being parsed for level.\n", line);
-                return_vector[index++] = parse_line(board, line, max_files_to_load); //return_vector is files to load
+                return_vector[index++] = parse_line(board, line); //return_vector is files to load
             }
             debug("Line parsed.\n");
         }
-        line = strtok(NULL, "\n");
+        line = strtok_r(NULL, "\n", &saveptr);
         debug("Next line obtained: %s\n", line);
     }
     
@@ -592,14 +582,15 @@ char* read_file(char* filepath, board_t *board, int max_files_to_load) {
  *
  * Returns the .m/.p files to open
  */
-char* parse_line(board_t *board, char *line, int max_files_to_load) {
-    char *files_to_load[max_files_to_load];
+char* parse_line(board_t *board, char *line) {
+    char *files_to_load[MAX_GHOSTS + 1];
     int index = 0;
     int n_pacmans = 0;
     int n_ghosts = 0;
     if (strncmp(line, "DIM", 3) == 0) {
         debug("Parsing DIM line.\n");
         sscanf(line + 4, "%d %d", &board->height, &board->width);
+        board->board = calloc(board->width * board->height, sizeof(board_pos_t));
         debug("Parsed DIM: height=%d, width=%d\n", board->height, board->width);
     } else if (strncmp(line, "TEMPO", 5) == 0) {
         debug("Parsing TEMPO line.\n");
@@ -609,42 +600,64 @@ char* parse_line(board_t *board, char *line, int max_files_to_load) {
         //There should be just 1 pacman
         debug("Parsing PAC line.\n");
         char pacman_file[256];
-        sscanf(line + 4, "%s", pacman_file);
+        sscanf(line, "PAC %s", pacman_file);
+        debug("PAC line pacman_file: %s\n", pacman_file);
         files_to_load[index++] = strdup(pacman_file); // Store pacman filename
-        board->n_pacmans = n_pacmans = index; // Update the number of pacmans
+        board->n_pacmans = n_pacmans = index;
+        board->pacmans = calloc(index, sizeof(pacman_t)); // Update the number of pacmans
         strcpy(board->pacman_file, files_to_load[index-1]); // Store pacman file
+        debug ("voard: %s\n", board->pacman_file);
         debug("Parsed PAC: n_pacmans=%d\n", n_pacmans);
     } else if (strncmp(line, "MON", 3) == 0) {
         debug("Parsing MON line.\n");
-        char *tokenm = strtok(line + 4, " ");
+        char *saveptrm;
+        char *tokenm = strtok_r(line + 4, " ", &saveptrm);
         int ghosts_index = 0;
         while (tokenm != NULL) {
             files_to_load[index++] = strdup(tokenm); // Store each filename
-            tokenm = strtok(NULL, " ");
+            tokenm = strtok_r(NULL, " ", &saveptrm);
             n_ghosts++;
             strcpy(board->ghosts_files[ghosts_index++], files_to_load[index-1]); // Store ghost file
         }
         board->n_ghosts = n_ghosts;
+        board->ghosts = calloc(n_ghosts, sizeof(ghost_t)); // Update the number of ghosts
         debug("Parsed MON: ghosts_file[0]=%s, ghosts_file[1]=%s, n_ghosts=%d\n", board->ghosts_files[0], board->ghosts_files[1], n_ghosts);
     } else {
         debug("Parsing board line.\n");
-        // Assume it's board content
-        if (!board->board) {
-            board->board = malloc(board->width * board->height * sizeof(board_pos_t));
+        if (board->board == NULL) {
+            debug("Board not initialized before parsing board lines.\n");
         }
         // Fill the board row by row
-        for (int i = 0; i < board->width; i++) {
-            char current_char = line[board->current_board_line++];
-            board->board[(board->height - 1) * board->width + i].content = current_char;
-            if (current_char == 'X') {
-                board->board[(board->height - 1) * board->width + i].content = 'W';
-            } else if (current_char == 'o') {
-                board->board[(board->height - 1) * board->width + i].has_dot = 1;
-                board->board[(board->height - 1) * board->width + i].content = ' ';
-            } else if (current_char == '@') {
-                board->board[(board->height - 1) * board->width + i].has_portal = 1;
-                board->board[(board->height - 1) * board->width + i].content = ' ';
+        for (int i = 0; i < board->width && line[i] != '\0'; i++) {
+            debug("entrou \n");
+            //char current_char = line[board->current_board_line++];
+                
+                        
+            int index = ((board->height - 1) * board->width) + i;
+            char char_lido = line[i];
+            debug("char lido: %c\n", char_lido);
+            
+            char conteudo_atual = board->board[index].content;
+            debug("conteudo atual: %c\n", conteudo_atual);
+
+            if (char_lido == 'X') {
+                board->board[index].content = 'W'; 
+                debug("x %c\n", board->board[index].content);
             }
+            else if (char_lido == '@') {
+                if (conteudo_atual != 'P' && conteudo_atual != 'M')
+                    board->board[index].content = ' ';
+                board->board[index].has_portal = 1;
+                debug("@ \n");
+            } else {
+                if (conteudo_atual != 'P' && conteudo_atual != 'M') {
+                    board->board[index].content = ' '; 
+                }
+                board->board[index].has_dot = 1;
+                debug(".\n");
+            }
+
+            debug("board atual %c", board->board[index].content);
         }
     }
     debug("parse_line returning files to load: %s\n", &files_to_load[index-1]);
