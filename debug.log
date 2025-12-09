@@ -1,0 +1,61 @@
+Loading level from file: dir/ola.lvl, max_files_to_load: 2
+Reading file: dir/ola.lvl
+File_content read:
+# DIM: dimensões da matriz do nível
+# só existe um no início por ficheiro
+DIM 6 6
+# TEMPO: indica a duração de cada jogada em milissegundos
+TEMPO 10
+# PAC: (opcional) indica o nome do ficheiro do pacman deste nível
+PAC 1.p
+# MON: indica os nomes dos ficheiros de monstros usados neste nível
+MON 1.m 2.m
+# o ficheiro termina com o conteúdo da matriz de jogo em que "X"
+# representa uma parede, "o" representa um espaço de circulação
+# e “@” representa o portal
+XXoXXX
+XoooXX
+XoXoXX
+Xooo@X
+XooooX
+XXXXXX
+Processing line: # DIM: dimensões da matriz do nível
+Next line obtained: # só existe um no início por ficheiro
+Processing line: # só existe um no início por ficheiro
+Next line obtained: DIM 6 6
+Processing line: DIM 6 6
+Line: DIM 6 6 is being parsed for level.
+Parsing DIM line.
+Parsed DIM: height=6, width=6
+parse_line returning files to load: �M��U
+Line parsed.
+Next line obtained: # TEMPO: indica a duração de cada jogada em milissegundos
+Processing line: # TEMPO: indica a duração de cada jogada em milissegundos
+Next line obtained: TEMPO 10
+Processing line: TEMPO 10
+Line: TEMPO 10 is being parsed for level.
+Parsing TEMPO line.
+Parsed TEMPO: tempo=10
+parse_line returning files to load: �M��U
+Line parsed.
+Next line obtained: # PAC: (opcional) indica o nome do ficheiro do pacman deste nível
+Processing line: # PAC: (opcional) indica o nome do ficheiro do pacman deste nível
+Next line obtained: PAC 1.p
+Processing line: PAC 1.p
+Line: PAC 1.p is being parsed for level.
+Parsing PAC line.
+Parsed PAC: n_pacmans=1
+parse_line returning files to load: �ӽ�U
+Line parsed.
+Next line obtained: # MON: indica os nomes dos ficheiros de monstros usados neste nível
+Processing line: # MON: indica os nomes dos ficheiros de monstros usados neste nível
+Next line obtained: MON 1.m 2.m
+Processing line: MON 1.m 2.m
+Line: MON 1.m 2.m is being parsed for level.
+Parsing MON line.
+Parsed MON: ghosts_file[0]=1.m, ghosts_file[1]=2.m, n_ghosts=2
+parse_line returning files to load: �ҽ�U
+Line parsed.
+Next line obtained: (null)
+Level file read completed.
+Loading pacman from file: dir/ola.lvl/;�ҽ�U

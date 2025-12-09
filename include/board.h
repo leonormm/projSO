@@ -58,6 +58,7 @@ typedef struct {
     char ghosts_files[MAX_GHOSTS][256]; // files with monster movements
     int tempo;              // Duration of each play
     int current_board_line;      // Current board line being processed to build the level
+    int board_line_count;       // Total number of lines in the board
     int cnt_moves;         // Number of moves in the current level
 } board_t;
 

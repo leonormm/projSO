@@ -93,6 +93,7 @@ int main(int argc, char** argv) {
     if (argc == 2) {
         automatic_mode = false;
         const char *dirpath = argv[1];
+        debug("Loading levels from directory: %s\n", dirpath);
         DIR *dirp = opendir(dirpath);
         if (dirp != NULL) {
             //int cnt_files = 0;
@@ -155,6 +156,7 @@ int main(int argc, char** argv) {
                     strcat(path, dp->d_name);
 
                     if (strcmp(ext, ".lvl") == 0) {
+                        debug("Found level file: %s\n", path);
                         lvl_paths[index_lp++] = path;
                     } else {
                         // If it's a .p or .m file, we can ignore it for now
@@ -170,7 +172,9 @@ int main(int argc, char** argv) {
     while (!end_game) {
         if (!automatic_mode) {
             int max_files_to_load = cnt_ghosts + 1; // +1 for pacman file
+            debug("Loading level from file: %s\n", lvl_paths[index_lp]);
             load_level_file(&game_board, lvl_paths[index_lp++], max_files_to_load, accumulated_points);
+            debug("Level loaded. Pacman file: %s, Number of ghosts: %d\n", game_board.pacman_file, game_board.n_ghosts);
         } else {
             load_level(&game_board, accumulated_points); //ESTE É O AUTOMATICO
         }

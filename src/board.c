@@ -54,7 +54,7 @@ int move_pacman(board_t* board, int pacman_index, command_t* command) {
     // check passo
     if (pac->waiting > 0) {
         pac->waiting -= 1;
-        return VALID_MOVE;        
+        return VALID_MOVE;
     }
     pac->waiting = pac->passo;
 
@@ -475,14 +475,18 @@ int load_level(board_t *board, int points) {
 int load_level_file(board_t *board, const char *filepath, int max_files_to_load, int points) {
     //files_to_load will contain all files to load: pacman first (if it exists), then ghosts
     char *files_to_load[max_files_to_load];
+    debug("Loading level from file: %s, max_files_to_load: %d\n", filepath, max_files_to_load);
     *files_to_load = read_file((char*)filepath, board, max_files_to_load);
+    debug("Level file read completed.\n");
     // If there is a pacman file, load it
     int mon_index = 0;
     if (board->n_pacmans > 0) {
         mon_index = 1;
         char pacman_path[256];
         snprintf(pacman_path, sizeof(pacman_path), "%s/%s", filepath, files_to_load[0]);
+        debug("Loading pacman from file: %s\n", pacman_path);
         load_pacman_file(board, pacman_path);
+        debug("Pacman loaded at position (%d, %d) with %d moves\n", board->pacmans[0].pos_x, board->pacmans[0].pos_y, board->pacmans[0].n_moves);
     } else {
         load_pacman(board, points); // Load default pacman
     }
@@ -509,6 +513,7 @@ char* read_file(char* filepath, board_t *board, int max_files_to_load) {
         size = MAX_MOVES + 3; // Creature buffer size
     }
     char* return_vector[size];
+    debug("Reading file: %s\n", filepath);
     
     int index = 0;
     // Open the level file for reading
@@ -529,8 +534,8 @@ char* read_file(char* filepath, board_t *board, int max_files_to_load) {
     ssize_t bytes_read;
     size_t total_read = 0;
     
-    // Read the file content
-    while ((bytes_read = read(fd, file_content + total_read, STRIDE - total_read)) > 0) {
+    //while ((bytes_read = read(fd, file_content + total_read, STRIDE - total_read)) > 0) {
+    while ((bytes_read = read(fd, file_content + total_read, STRIDE)) > 0) {
         total_read += bytes_read;
         if (total_read >= STRIDE) {
             // Resize if necessary
@@ -552,22 +557,29 @@ char* read_file(char* filepath, board_t *board, int max_files_to_load) {
         return NULL;
     }
     
-    file_content[total_read] = '\0';
     
-    // Process the file content to build the level
+    file_content[total_read] = '\0';
+    debug("File_content read:\n%s\n", file_content);
+    
+    // Process the file content to build the level or creature buffer
     board->current_board_line = 0;
     board->cnt_moves = 0;
     char *line = strtok(file_content, "\n");
     
     while (line != NULL) {
+        debug("Processing line: %s\n", line);
         if (line[0] != '#' && line[0] != '\0') {
+            //debug("Parsing line: %s\n", line);
             if (max_files_to_load == -1) {
                 return_vector[index++] = parse_line_creature(board, line); //return_vector is crature buffer
             } else {
+                debug("Line: %s is being parsed for level.\n", line);
                 return_vector[index++] = parse_line(board, line, max_files_to_load); //return_vector is files to load
             }
+            debug("Line parsed.\n");
         }
         line = strtok(NULL, "\n");
+        debug("Next line obtained: %s\n", line);
     }
     
     free(file_content);
@@ -586,29 +598,36 @@ char* parse_line(board_t *board, char *line, int max_files_to_load) {
     int n_pacmans = 0;
     int n_ghosts = 0;
     if (strncmp(line, "DIM", 3) == 0) {
+        debug("Parsing DIM line.\n");
         sscanf(line + 4, "%d %d", &board->height, &board->width);
+        debug("Parsed DIM: height=%d, width=%d\n", board->height, board->width);
     } else if (strncmp(line, "TEMPO", 5) == 0) {
+        debug("Parsing TEMPO line.\n");
         sscanf(line + 6, "%d", &board->tempo);
+        debug("Parsed TEMPO: tempo=%d\n", board->tempo);
     } else if (strncmp(line, "PAC", 3) == 0) {
-        char *token = strtok(line + 4, " ");
-        index = 0;
-        while (token != NULL && index) { //There should be just 1 pacman
-            files_to_load[index++] = strdup(token);
-            token = strtok(NULL, " ");
-        }
+        //There should be just 1 pacman
+        debug("Parsing PAC line.\n");
+        char pacman_file[256];
+        sscanf(line + 4, "%s", pacman_file);
+        files_to_load[index++] = strdup(pacman_file); // Store pacman filename
         board->n_pacmans = n_pacmans = index; // Update the number of pacmans
-        strcpy(board->pacman_file,files_to_load[index-1]); // Store pacman file
+        strcpy(board->pacman_file, files_to_load[index-1]); // Store pacman file
+        debug("Parsed PAC: n_pacmans=%d\n", n_pacmans);
     } else if (strncmp(line, "MON", 3) == 0) {
-        char *token = strtok(line + 4, " ");
+        debug("Parsing MON line.\n");
+        char *tokenm = strtok(line + 4, " ");
         int ghosts_index = 0;
-        while (token != NULL) {
-            files_to_load[index++] = strdup(token); // Store each filename
-            token = strtok(NULL, " ");
+        while (tokenm != NULL) {
+            files_to_load[index++] = strdup(tokenm); // Store each filename
+            tokenm = strtok(NULL, " ");
             n_ghosts++;
             strcpy(board->ghosts_files[ghosts_index++], files_to_load[index-1]); // Store ghost file
         }
         board->n_ghosts = n_ghosts;
+        debug("Parsed MON: ghosts_file[0]=%s, ghosts_file[1]=%s, n_ghosts=%d\n", board->ghosts_files[0], board->ghosts_files[1], n_ghosts);
     } else {
+        debug("Parsing board line.\n");
         // Assume it's board content
         if (!board->board) {
             board->board = malloc(board->width * board->height * sizeof(board_pos_t));
@@ -628,6 +647,7 @@ char* parse_line(board_t *board, char *line, int max_files_to_load) {
             }
         }
     }
+    debug("parse_line returning files to load: %s\n", &files_to_load[index-1]);
     return *files_to_load;
 }
 
