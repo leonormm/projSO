@@ -376,10 +376,10 @@ int load_pacman_file(board_t* board, const char* filepath, int points) {
         return -1;
     }
 
-    // POS Y X logic as in previous steps, check if this matches your files
+    // POS Y X logic
     board->pacmans[0].passo = atoi(tokens[0]);
-    board->pacmans[0].pos_x = atoi(tokens[1]); 
-    board->pacmans[0].pos_y = atoi(tokens[2]);
+    board->pacmans[0].pos_y = atoi(tokens[1]); // Linha
+    board->pacmans[0].pos_x = atoi(tokens[2]); // Coluna
 
     board->pacmans[0].alive = 1;
     board->pacmans[0].points = points;
@@ -408,6 +408,14 @@ int load_pacman_file(board_t* board, const char* filepath, int points) {
         move_idx++;
     }
     board->pacmans[0].n_moves = move_idx;
+
+    // CORRECAO: Prevenir SIGFPE se n_moves for 0
+    if (board->pacmans[0].n_moves == 0) {
+        board->pacmans[0].moves[0].command = 'T'; // Wait
+        board->pacmans[0].moves[0].turns = 1;
+        board->pacmans[0].moves[0].turns_left = 1;
+        board->pacmans[0].n_moves = 1;
+    }
 
     // Free tokens
     for(int i=0; tokens[i] != NULL; i++) free(tokens[i]);
@@ -453,9 +461,10 @@ int load_ghost_file(board_t* board, const char* filepath, int ghost_index) {
          return -1;
     }
 
+    // CORRECAO: tokens[1] = LINHA (Y), tokens[2] = COLUNA (X)
     board->ghosts[ghost_index].passo = atoi(tokens[0]);
-    board->ghosts[ghost_index].pos_x = atoi(tokens[1]); 
-    board->ghosts[ghost_index].pos_y = atoi(tokens[2]); 
+    board->ghosts[ghost_index].pos_y = atoi(tokens[1]); 
+    board->ghosts[ghost_index].pos_x = atoi(tokens[2]); 
     
     // Set on board
     int idx = board->ghosts[ghost_index].pos_y * board->width + board->ghosts[ghost_index].pos_x;
@@ -482,7 +491,7 @@ int load_ghost_file(board_t* board, const char* filepath, int ghost_index) {
     }
     board->ghosts[ghost_index].n_moves = move_idx;
 
-    // PREVENT DIV BY ZERO
+    // CORRECAO: Prevenir SIGFPE se n_moves for 0
     if (board->ghosts[ghost_index].n_moves == 0) {
         board->ghosts[ghost_index].moves[0].command = 'T';
         board->ghosts[ghost_index].moves[0].turns = 1;
@@ -632,13 +641,9 @@ char** read_file(char* filepath, board_t *board, int max_files_to_load) {
         size_t tokens_cap = 64;
         size_t tokens_count = 0;
         char **tokens = malloc(sizeof(char*) * tokens_cap);
-        
-        void add_token(char *str) {
-            if (tokens_count >= tokens_cap - 1) {
-                tokens_cap *= 2;
-                tokens = realloc(tokens, sizeof(char*) * tokens_cap);
-            }
-            tokens[tokens_count++] = strdup(str);
+        if(!tokens) {
+            free(file_content);
+            return NULL;
         }
 
         char *saveptr_line;
@@ -651,20 +656,37 @@ char** read_file(char* filepath, board_t *board, int max_files_to_load) {
              
              if (strncmp(line, "PASSO", 5) == 0) {
                  char val[32];
-                 if (sscanf(line + 5, "%s", val) == 1) add_token(val);
+                 if (sscanf(line + 5, "%s", val) == 1) {
+                    if (tokens_count >= tokens_cap - 1) {
+                        tokens_cap *= 2;
+                        char** new_tokens = realloc(tokens, sizeof(char*) * tokens_cap);
+                        if(new_tokens) tokens = new_tokens;
+                    }
+                    tokens[tokens_count++] = strdup(val);
+                 }
              } 
              else if (strncmp(line, "POS", 3) == 0) {
                  char x[32], y[32];
                  if (sscanf(line + 3, "%s %s", x, y) == 2) {
-                     add_token(x);
-                     add_token(y);
+                     if (tokens_count >= tokens_cap - 2) {
+                        tokens_cap *= 2;
+                        char** new_tokens = realloc(tokens, sizeof(char*) * tokens_cap);
+                        if(new_tokens) tokens = new_tokens;
+                     }
+                     tokens[tokens_count++] = strdup(x);
+                     tokens[tokens_count++] = strdup(y);
                  }
              }
              else {
                  char *saveptr_tok;
                  char *tok = strtok_r(line, " \t\r", &saveptr_tok);
                  while(tok) {
-                     add_token(tok);
+                     if (tokens_count >= tokens_cap - 1) {
+                        tokens_cap *= 2;
+                        char** new_tokens = realloc(tokens, sizeof(char*) * tokens_cap);
+                        if(new_tokens) tokens = new_tokens;
+                     }
+                     tokens[tokens_count++] = strdup(tok);
                      tok = strtok_r(NULL, " \t\r", &saveptr_tok);
                  }
                  board->cnt_moves++;
@@ -679,8 +701,8 @@ char** read_file(char* filepath, board_t *board, int max_files_to_load) {
 
 char* parse_line(board_t *board, char *line) {
     if (strncmp(line, "DIM", 3) == 0) {
-        // CORRECAO: REVERTIDO PARA PADRAO (HEIGHT WIDTH)
-        sscanf(line + 3, "%d %d", &board->height, &board->width);
+        // CORRECAO: Swapped to width, height based on your feedback
+        sscanf(line + 3, "%d %d", &board->width, &board->height);
         board->board = calloc(board->width * board->height, sizeof(board_pos_t));
     } else if (strncmp(line, "TEMPO", 5) == 0) {
         sscanf(line + 5, "%d", &board->tempo);
