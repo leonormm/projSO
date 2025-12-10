@@ -6,17 +6,14 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <string.h>
-//#include <stddef.h>
+#include <stdio.h>
+#include <stdbool.h>
 
 #define CONTINUE_PLAY 0
 #define NEXT_LEVEL 1
 #define QUIT_GAME 2
-#define LOAD_BACKUP 3
-#define CREATE_BACKUP 4
-#define STRIDE 128
 
 void screen_refresh(board_t * game_board, int mode) {
-    debug("REFRESH\n");
     draw_board(game_board, mode);
     refresh_screen();
     if(game_board->tempo != 0)
@@ -36,13 +33,9 @@ int play_board(board_t * game_board) {
         c.turns = 1;
         play = &c;
     }
-    else { // else if the moves are pre-defined in the file
-        // avoid buffer overflow wrapping around with modulo of n_moves
-        // this ensures that we always access a valid move for the pacman
+    else { 
         play = &pacman->moves[pacman->current_move%pacman->n_moves];
     }
-
-    debug("KEY %c\n", play->command);
 
     if (play->command == 'Q') {
         return QUIT_GAME;
@@ -50,7 +43,6 @@ int play_board(board_t * game_board) {
 
     int result = move_pacman(game_board, 0, play);
     if (result == REACHED_PORTAL) {
-        // Next level
         return NEXT_LEVEL;
     }
 
@@ -60,8 +52,6 @@ int play_board(board_t * game_board) {
     
     for (int i = 0; i < game_board->n_ghosts; i++) {
         ghost_t* ghost = &game_board->ghosts[i];
-        // avoid buffer overflow wrapping around with modulo of n_moves
-        // this ensures that we always access a valid move for the ghost
         move_ghost(game_board, i, &ghost->moves[ghost->current_move%ghost->n_moves]);
     }
 
@@ -73,7 +63,6 @@ int play_board(board_t * game_board) {
 }
 
 int main(int argc, char** argv) {
-    // Random seed for any random movements
     srand((unsigned int)time(NULL));
     board_t game_board;
     open_debug_file("debug.log");
@@ -85,128 +74,102 @@ int main(int argc, char** argv) {
     bool automatic_mode = true;
     char **lvl_paths = NULL;
     int index_lp = 0;
-    int cnt_files = 0;
     int cnt_lvl = 0;
-    int cnt_pacman = 0;
-    int cnt_ghosts = 0;
 
     if (argc == 2) {
         automatic_mode = false;
         const char *dirpath = argv[1];
         debug("Loading levels from directory: %s\n", dirpath);
+        
         DIR *dirp = opendir(dirpath);
         if (dirp != NULL) {
-            //int cnt_files = 0;
-            //int cnt_pacman = 0;
-            //int cnt_lvl = 0;
             struct dirent *dp;
-
-            // First pass: count files
+            // First pass: count levels
             while ((dp = readdir(dirp)) != NULL) {
-                if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
-                    continue;
-
+                if (dp->d_name[0] == '.') continue;
                 const char *ext = strrchr(dp->d_name, '.');
-                if (!ext) continue;
-
-                if (strcmp(ext, ".lvl") == 0) {
+                if (ext && strcmp(ext, ".lvl") == 0) {
                     cnt_lvl++;
-                } else if (strcmp(ext, ".p") == 0) {
-                    cnt_pacman++;
                 }
-                cnt_files++;
             }
-            cnt_ghosts = cnt_files - cnt_pacman - cnt_lvl;
-
             closedir(dirp);
 
             if (cnt_lvl == 0) {
+                terminal_cleanup();
                 fprintf(stderr, "No .lvl files found in the directory.\n");
                 return EXIT_FAILURE;
             }
-            if (cnt_pacman > cnt_lvl) {
-                fprintf(stderr, "More .p files than .lvl files found in the directory.\n");
-                return EXIT_FAILURE;
-            }
 
-            // Now we can read the files
             lvl_paths = malloc(cnt_lvl * sizeof(char*));
-            index_lp = 0;
             dirp = opendir(dirpath);
+            int idx = 0;
             if (dirp != NULL) {
-                while ((dp = readdir(dirp)) != NULL) {
-                    if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
-                        continue;
-
+                while ((dp = readdir(dirp)) != NULL && idx < cnt_lvl) {
+                    if (dp->d_name[0] == '.') continue;
                     const char *ext = strrchr(dp->d_name, '.');
-                    if (!ext) continue;
-
-                    size_t dlen = strlen(dirpath);
-                    size_t nlen = strlen(dp->d_name);
-                    size_t need = dlen + 1 + nlen + 1;
-                    char *path = malloc(need);
-                    if (!path) continue;
-                    strcpy(path, dirpath);
-                    if (dlen == 0 || dirpath[dlen-1] != '/') {
-                        path[dlen] = '/';
-                        path[dlen+1] = '\0';
-                    } else {
-                        path[dlen] = '\0';
-                    }
-                    strcat(path, dp->d_name);
-
-                    if (strcmp(ext, ".lvl") == 0) {
-                        debug("Found level file: %s\n", path);
-                        lvl_paths[index_lp++] = path;
-                    } else {
-                        // If it's a .p or .m file, we can ignore it for now
-                        free(path);
+                    if (ext && strcmp(ext, ".lvl") == 0) {
+                        size_t len = strlen(dirpath) + strlen(dp->d_name) + 2;
+                        char *path = malloc(len);
+                        sprintf(path, "%s/%s", dirpath, dp->d_name);
+                        lvl_paths[idx++] = path;
                     }
                 }
                 closedir(dirp);
             }
         }
     }
+
     index_lp = 0;
 
     while (!end_game) {
         if (!automatic_mode) {
-            int max_files_to_load = cnt_ghosts + 1; // +1 for pacman file
-            debug("Loading level from file: %s\n", lvl_paths[index_lp]);
-            load_level_file(&game_board, lvl_paths[index_lp++], max_files_to_load, accumulated_points);
-            debug("Level loaded. Pacman file: %s, Number of ghosts: %d\n", game_board.pacman_file, game_board.n_ghosts);
+            if (index_lp >= cnt_lvl) {
+                end_game = true;
+                break;
+            }
+            load_level_file(&game_board, lvl_paths[index_lp++], 0, accumulated_points);
         } else {
-            load_level(&game_board, accumulated_points); //ESTE É O AUTOMATICO
+            load_level(&game_board, accumulated_points);
+            end_game = true; 
         }
+        
         draw_board(&game_board, DRAW_MENU);
         refresh_screen();
+
+        while(get_input() == '\0') {
+             sleep_ms(100);
+        }
 
         while(true) {
             int result = play_board(&game_board); 
 
             if(result == NEXT_LEVEL) {
                 screen_refresh(&game_board, DRAW_WIN);
-                sleep_ms(game_board.tempo);
+                sleep_ms(2000);
                 break;
             }
 
             if(result == QUIT_GAME) {
                 screen_refresh(&game_board, DRAW_GAME_OVER); 
-                sleep_ms(game_board.tempo);
+                sleep_ms(2000);
                 end_game = true;
                 break;
             }
     
             screen_refresh(&game_board, DRAW_MENU); 
-
             accumulated_points = game_board.pacmans[0].points;      
         }
-        print_board(&game_board);
         unload_level(&game_board);
     }    
 
-    terminal_cleanup();
+    if (lvl_paths) {
+        for (int i = 0; i < cnt_lvl; i++) {
+            free(lvl_paths[i]);
+        }
+        free(lvl_paths);
+    }
 
+    terminal_cleanup();
     close_debug_file();
 
     return 0;
