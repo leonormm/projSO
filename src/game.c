@@ -142,6 +142,7 @@ int main(int argc, char** argv) {
     index_lp = 0;
 
     bool has_backup = false;
+    bool save_used = false;
 
     while (!end_game) {
         if (!automatic_mode) {
@@ -162,7 +163,7 @@ int main(int argc, char** argv) {
             int result = play_board(&game_board); 
 
             if (result == CREATE_BACKUP) {
-                if (!has_backup) {
+                if (!has_backup && !save_used) {
                     // cria backup
                     pid_t pid = fork();
 
@@ -181,16 +182,11 @@ int main(int argc, char** argv) {
 
                             if (exit_code == EXIT_PACMAN_DIED) {
                                 debug("Pacman morreu no filho, restaurando...\n");
+                                save_used = true;
                                 screen_refresh(&game_board, DRAW_MENU);
                                 continue;
                             } else {
-                                end_game = true;
-                                if (exit_code == NEXT_LEVEL) {
-                                    result = NEXT_LEVEL;
-                                } else if (exit_code == QUIT_GAME) {
-                                    result = QUIT_GAME;
-                                }
-                                break;
+                                exit(exit_code);
                             }
                         }
                     }
@@ -202,7 +198,7 @@ int main(int argc, char** argv) {
                 accumulated_points = game_board.pacmans[0].points;
                 screen_refresh(&game_board, DRAW_WIN);
                 sleep_ms(2000);
-                if (has_backup) exit(QUIT_GAME);
+                if (has_backup) exit(NEXT_LEVEL);
                 break;
             }
 

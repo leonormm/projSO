@@ -16,15 +16,6 @@ REFRESH
 KEY S
 REFRESH
 REFRESH
-KEY S
-REFRESH
-KEY A
-REFRESH
-KEY A
-Killing 0 pacman
-
-Pacman morreu no filho, restaurando...
-REFRESH
 KEY A
 REFRESH
 REFRESH
@@ -35,9 +26,11 @@ Killing 0 pacman
 
 Pacman morreu no filho, restaurando...
 REFRESH
-KEY S
+KEY A
 REFRESH
 KEY A
+REFRESH
+KEY S
 Killing 0 pacman
 
 REFRESH
