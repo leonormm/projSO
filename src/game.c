@@ -75,6 +75,9 @@ int play_board(board_t * game_board) {
 int main(int argc, char** argv) {
     srand((unsigned int)time(NULL));
     board_t game_board;
+
+    memset(&game_board, 0, sizeof(board_t));
+    
     open_debug_file("debug.log");
 
     terminal_init();
@@ -150,6 +153,7 @@ int main(int argc, char** argv) {
             int result = play_board(&game_board); 
 
             if(result == NEXT_LEVEL) {
+                accumulated_points = game_board.pacmans[0].points;
                 screen_refresh(&game_board, DRAW_WIN);
                 sleep_ms(2000);
                 break;

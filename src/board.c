@@ -106,6 +106,10 @@ int move_pacman(board_t* board, int pacman_index, command_t* command) {
     if (board->board[new_index].has_portal) {
         board->board[old_index].content = ' ';
         board->board[new_index].content = 'P';
+
+        pac->pos_x = new_x;
+        pac->pos_y = new_y;
+
         return REACHED_PORTAL;
     }
 
