@@ -69,6 +69,9 @@ int play_board(board_t * game_board) {
         ghost_t* ghost = &game_board->ghosts[i];
         // avoid buffer overflow wrapping around with modulo of n_moves
         // this ensures that we always access a valid move for the ghost
+        if (pacman->n_moves == 0) {
+            ghost->waiting = 0;
+        }
         move_ghost(game_board, i, &ghost->moves[ghost->current_move%ghost->n_moves]);
     }
 
