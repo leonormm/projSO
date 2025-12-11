@@ -341,8 +341,8 @@ void kill_pacman(board_t* board, int pacman_index) {
 // Static Loading
 int load_pacman(board_t* board, int points) {
     if(board->n_pacmans == 0) {
-         board->n_pacmans = 1;
-         board->pacmans = calloc(1, sizeof(pacman_t));
+        board->n_pacmans = 1;
+        board->pacmans = calloc(1, sizeof(pacman_t));
     }
     board->board[1 * board->width + 1].content = 'P'; // Pacman
     board->pacmans[0].pos_x = 1;
@@ -399,17 +399,16 @@ int load_pacman_file(board_t* board, const char* filepath, int points) {
         board->pacmans[0].moves[move_idx].turns = 1; 
         
         if (cmd == 'T') {
-             if (tokens[i+1] != NULL && isdigit(tokens[i+1][0])) {
-                 board->pacmans[0].moves[move_idx].turns = atoi(tokens[i+1]);
-                 i++; // Skip the number token
-             }
+            if (tokens[i+1] != NULL && isdigit(tokens[i+1][0])) {
+                board->pacmans[0].moves[move_idx].turns = atoi(tokens[i+1]);
+                i++; // Skip the number token
+            }
         }
         board->pacmans[0].moves[move_idx].turns_left = board->pacmans[0].moves[move_idx].turns;
         move_idx++;
     }
     board->pacmans[0].n_moves = move_idx;
 
-    // CORRECAO: Prevenir SIGFPE se n_moves for 0
     if (board->pacmans[0].n_moves == 0) {
         board->pacmans[0].moves[0].command = 'T'; // Wait
         board->pacmans[0].moves[0].turns = 1;
@@ -417,7 +416,6 @@ int load_pacman_file(board_t* board, const char* filepath, int points) {
         board->pacmans[0].n_moves = 1;
     }
 
-    // Free tokens
     for(int i=0; tokens[i] != NULL; i++) free(tokens[i]);
     free(tokens);
 
@@ -427,7 +425,34 @@ int load_pacman_file(board_t* board, const char* filepath, int points) {
 
 // Static Loading
 int load_ghost(board_t* board) {
-    (void)board;
+    // Ghost 0
+    board->board[3 * board->width + 1].content = 'M'; // Monster
+    board->ghosts[0].pos_x = 1;
+    board->ghosts[0].pos_y = 3;
+    board->ghosts[0].passo = 0;
+    board->ghosts[0].waiting = 0;
+    board->ghosts[0].current_move = 0;
+    board->ghosts[0].n_moves = 16;
+    for (int i = 0; i < 8; i++) {
+        board->ghosts[0].moves[i].command = 'D';
+        board->ghosts[0].moves[i].turns = 1; 
+    }
+    for (int i = 8; i < 16; i++) {
+        board->ghosts[0].moves[i].command = 'A';
+        board->ghosts[0].moves[i].turns = 1; 
+    }
+
+    // Ghost 1
+    board->board[2 * board->width + 4].content = 'M'; // Monster
+    board->ghosts[1].pos_x = 4;
+    board->ghosts[1].pos_y = 2;
+    board->ghosts[1].passo = 1;
+    board->ghosts[1].waiting = 1;
+    board->ghosts[1].current_move = 0;
+    board->ghosts[1].n_moves = 1;
+    board->ghosts[1].moves[0].command = 'R'; // Random
+    board->ghosts[1].moves[0].turns = 1; 
+    
     return 0;
 }
 
@@ -452,21 +477,18 @@ int load_ghost_file(board_t* board, const char* filepath, int ghost_index) {
     }
     
     if (board->cnt_moves < 3) {
-         for(int i=0; tokens[i] != NULL; i++) free(tokens[i]);
-         free(tokens);
-         // FALLBACK
-         board->ghosts[ghost_index].n_moves = 1;
-         board->ghosts[ghost_index].moves[0].command = 'T';
-         board->ghosts[ghost_index].moves[0].turns = 1;
-         return -1;
+        for(int i=0; tokens[i] != NULL; i++) free(tokens[i]);
+        free(tokens);
+        board->ghosts[ghost_index].n_moves = 1;
+        board->ghosts[ghost_index].moves[0].command = 'T';
+        board->ghosts[ghost_index].moves[0].turns = 1;
+        return -1;
     }
 
-    // CORRECAO: tokens[1] = LINHA (Y), tokens[2] = COLUNA (X)
     board->ghosts[ghost_index].passo = atoi(tokens[0]);
     board->ghosts[ghost_index].pos_y = atoi(tokens[1]); 
     board->ghosts[ghost_index].pos_x = atoi(tokens[2]); 
     
-    // Set on board
     int idx = board->ghosts[ghost_index].pos_y * board->width + board->ghosts[ghost_index].pos_x;
     if(idx >= 0 && idx < board->width * board->height)
         board->board[idx].content = 'M';
@@ -481,17 +503,16 @@ int load_ghost_file(board_t* board, const char* filepath, int ghost_index) {
         board->ghosts[ghost_index].moves[move_idx].turns = 1;
 
         if (cmd == 'T') {
-             if (tokens[i+1] != NULL && isdigit(tokens[i+1][0])) {
-                 board->ghosts[ghost_index].moves[move_idx].turns = atoi(tokens[i+1]);
-                 i++;
-             }
+            if (tokens[i+1] != NULL && isdigit(tokens[i+1][0])) {
+                board->ghosts[ghost_index].moves[move_idx].turns = atoi(tokens[i+1]);
+                i++;
+            }
         }
         board->ghosts[ghost_index].moves[move_idx].turns_left = board->ghosts[ghost_index].moves[move_idx].turns;
         move_idx++;
     }
     board->ghosts[ghost_index].n_moves = move_idx;
 
-    // CORRECAO: Prevenir SIGFPE se n_moves for 0
     if (board->ghosts[ghost_index].n_moves == 0) {
         board->ghosts[ghost_index].moves[0].command = 'T';
         board->ghosts[ghost_index].moves[0].turns = 1;
@@ -499,7 +520,6 @@ int load_ghost_file(board_t* board, const char* filepath, int ghost_index) {
         board->ghosts[ghost_index].n_moves = 1;
     }
 
-    // Free tokens
     for(int i=0; tokens[i] != NULL; i++) free(tokens[i]);
     free(tokens);
     
@@ -576,7 +596,7 @@ int load_level_file(board_t *board, const char *filepath, int max_files_to_load,
     }
     free(dirc);
 
-    sprintf(board->level_name, "Loaded Level %s", basename((char*)filepath));
+    sprintf(board->level_name, "%s", basename((char*)filepath));
     return 0;
 }
 
@@ -650,8 +670,8 @@ char** read_file(char* filepath, board_t *board, int max_files_to_load) {
         char *line = strtok_r(file_content, "\n", &saveptr_line);
         while (line != NULL) {
              if (line[0] == '#' || line[0] == '\0') {
-                 line = strtok_r(NULL, "\n", &saveptr_line);
-                 continue;
+                line = strtok_r(NULL, "\n", &saveptr_line);
+                continue;
              }
              
              if (strncmp(line, "PASSO", 5) == 0) {
@@ -664,34 +684,34 @@ char** read_file(char* filepath, board_t *board, int max_files_to_load) {
                     }
                     tokens[tokens_count++] = strdup(val);
                  }
-             } 
-             else if (strncmp(line, "POS", 3) == 0) {
-                 char x[32], y[32];
-                 if (sscanf(line + 3, "%s %s", x, y) == 2) {
-                     if (tokens_count >= tokens_cap - 2) {
+            } 
+            else if (strncmp(line, "POS", 3) == 0) {
+                char x[32], y[32];
+                if (sscanf(line + 3, "%s %s", x, y) == 2) {
+                    if (tokens_count >= tokens_cap - 2) {
                         tokens_cap *= 2;
                         char** new_tokens = realloc(tokens, sizeof(char*) * tokens_cap);
                         if(new_tokens) tokens = new_tokens;
-                     }
-                     tokens[tokens_count++] = strdup(x);
-                     tokens[tokens_count++] = strdup(y);
-                 }
-             }
-             else {
-                 char *saveptr_tok;
-                 char *tok = strtok_r(line, " \t\r", &saveptr_tok);
-                 while(tok) {
-                     if (tokens_count >= tokens_cap - 1) {
+                    }
+                    tokens[tokens_count++] = strdup(x);
+                    tokens[tokens_count++] = strdup(y);
+                }
+            }
+            else {
+                char *saveptr_tok;
+                char *tok = strtok_r(line, " \t\r", &saveptr_tok);
+                while(tok) {
+                    if (tokens_count >= tokens_cap - 1) {
                         tokens_cap *= 2;
                         char** new_tokens = realloc(tokens, sizeof(char*) * tokens_cap);
                         if(new_tokens) tokens = new_tokens;
-                     }
-                     tokens[tokens_count++] = strdup(tok);
-                     tok = strtok_r(NULL, " \t\r", &saveptr_tok);
-                 }
-                 board->cnt_moves++;
-             }
-             line = strtok_r(NULL, "\n", &saveptr_line);
+                    }
+                    tokens[tokens_count++] = strdup(tok);
+                    tok = strtok_r(NULL, " \t\r", &saveptr_tok);
+                }
+                board->cnt_moves++;
+            }
+            line = strtok_r(NULL, "\n", &saveptr_line);
         }
         tokens[tokens_count] = NULL;
         free(file_content);
@@ -701,7 +721,6 @@ char** read_file(char* filepath, board_t *board, int max_files_to_load) {
 
 char* parse_line(board_t *board, char *line) {
     if (strncmp(line, "DIM", 3) == 0) {
-        // CORRECAO: Swapped to width, height based on your feedback
         sscanf(line + 3, "%d %d", &board->width, &board->height);
         board->board = calloc(board->width * board->height, sizeof(board_pos_t));
     } else if (strncmp(line, "TEMPO", 5) == 0) {
@@ -750,12 +769,6 @@ char* parse_line(board_t *board, char *line) {
     return NULL;
 }
 
-char* parse_line_creature(board_t *board, char *line) {
-    (void)board; 
-    (void)line; 
-    return NULL; 
-}
-
 void unload_level(board_t * board) {
     if(board->board) free(board->board);
     if(board->pacmans) free(board->pacmans);
@@ -770,15 +783,15 @@ void open_debug_file(char *filename) {
 }
 
 void close_debug_file() {
-    if(debugfile) fclose(debugfile);
+    fclose(debugfile);
 }
 
 void debug(const char * format, ...) {
-    if(!debugfile) return;
     va_list args;
     va_start(args, format);
     vfprintf(debugfile, format, args);
     va_end(args);
+
     fflush(debugfile);
 }
 
@@ -787,17 +800,28 @@ void print_board(board_t *board) {
         debug("[%d] Board is empty or not initialized.\n", getpid());
         return;
     }
+
+    // Large buffer to accumulate the whole output
     char buffer[8192];
     size_t offset = 0;
+
     offset += snprintf(buffer + offset, sizeof(buffer) - offset,
-                       "=== [%d] LEVEL INFO ===\nDimensions: %d x %d\nTempo: %d\nPacman file: %s\n",
+                       "=== [%d] LEVEL INFO ===\n"
+                       "Dimensions: %d x %d\n"
+                       "Tempo: %d\n"
+                       "Pacman file: %s\n",
                        getpid(), board->height, board->width, board->tempo, board->pacman_file);
+
     offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                        "Monster files (%d):\n", board->n_ghosts);
+
     for (int i = 0; i < board->n_ghosts; i++) {
-        offset += snprintf(buffer + offset, sizeof(buffer) - offset, "  - %s\n", board->ghosts_files[i]);
+        offset += snprintf(buffer + offset, sizeof(buffer) - offset,
+                           "  - %s\n", board->ghosts_files[i]);
     }
+
     offset += snprintf(buffer + offset, sizeof(buffer) - offset, "\n=== BOARD ===\n");
+    
     for (int y = 0; y < board->height; y++) {
         for (int x = 0; x < board->width; x++) {
             int idx = y * board->width + x;
@@ -805,9 +829,14 @@ void print_board(board_t *board) {
                 buffer[offset++] = board->board[idx].content;
             }
         }
-        if (offset < sizeof(buffer) - 2) buffer[offset++] = '\n';
+        if (offset < sizeof(buffer) - 2) {
+            buffer[offset++] = '\n';
+        }
     }
+
     offset += snprintf(buffer + offset, sizeof(buffer) - offset, "==================\n");
+
     buffer[offset] = '\0';
+
     debug("%s", buffer);
 }

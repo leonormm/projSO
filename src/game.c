@@ -12,8 +12,11 @@
 #define CONTINUE_PLAY 0
 #define NEXT_LEVEL 1
 #define QUIT_GAME 2
+#define LOAD_BACKUP 3
+#define CREATE_BACKUP 4
 
 void screen_refresh(board_t * game_board, int mode) {
+    debug("REFRESH\n");
     draw_board(game_board, mode);
     refresh_screen();
     if(game_board->tempo != 0)
@@ -33,9 +36,13 @@ int play_board(board_t * game_board) {
         c.turns = 1;
         play = &c;
     }
-    else { 
+    else { // else if the moves are pre-defined in the file
+        // avoid buffer overflow wrapping around with modulo of n_moves
+        // this ensures that we always access a valid move for the pacman
         play = &pacman->moves[pacman->current_move%pacman->n_moves];
     }
+
+    debug("KEY %c\n", play->command);
 
     if (play->command == 'Q') {
         return QUIT_GAME;
@@ -43,6 +50,7 @@ int play_board(board_t * game_board) {
 
     int result = move_pacman(game_board, 0, play);
     if (result == REACHED_PORTAL) {
+        // Next level
         return NEXT_LEVEL;
     }
 
@@ -52,6 +60,8 @@ int play_board(board_t * game_board) {
     
     for (int i = 0; i < game_board->n_ghosts; i++) {
         ghost_t* ghost = &game_board->ghosts[i];
+        // avoid buffer overflow wrapping around with modulo of n_moves
+        // this ensures that we always access a valid move for the ghost
         move_ghost(game_board, i, &ghost->moves[ghost->current_move%ghost->n_moves]);
     }
 
@@ -135,10 +145,6 @@ int main(int argc, char** argv) {
         
         draw_board(&game_board, DRAW_MENU);
         refresh_screen();
-
-        while(get_input() == '\0') {
-             sleep_ms(100);
-        }
 
         while(true) {
             int result = play_board(&game_board); 
