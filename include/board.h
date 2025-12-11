@@ -1,4 +1,3 @@
-#include <pthread.h>
 #ifndef BOARD_H
 #define BOARD_H
 
@@ -45,7 +44,6 @@ typedef struct {
     char content;   // stuff like 'P' for pacman 'M' for monster/ghost and 'W' for wall
     int has_dot;    // whether there is a dot in this position or not
     int has_portal; // whether there is a portal in this position or not
-    pthread_mutex_t mutex;
 } board_pos_t;
 
 typedef struct {
