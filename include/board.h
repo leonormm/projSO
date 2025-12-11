@@ -77,16 +77,19 @@ void kill_pacman(board_t* board, int pacman_index);
 /*Adds a pacman to the board*/
 int load_pacman(board_t* board, int points);
 
+/*Loads pacman from file*/
 int load_pacman_file(board_t* board, const char* filepath, int points);
 
 /*Adds a ghost(monster) to the board*/
 int load_ghost(board_t* board);
 
+/*Loads ghost from file*/
 int load_ghost_file(board_t* board, const char* filepath, int ghost_index);
 
 /*Loads a level into board*/
 int load_level(board_t* board, int accumulated_points);
 
+/*Loads level from a file*/
 int load_level_file(board_t *board, const char *filepath, int max_files_to_load, int points);
 char** read_file(char* filepath, board_t *board, int max_files_to_load);
 char* parse_line(board_t *board, char *line);

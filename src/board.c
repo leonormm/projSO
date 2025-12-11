@@ -356,9 +356,7 @@ int load_pacman(board_t* board, int points) {
     return 0;
 }
 
-/**
- * Loads a pacman from file
- */
+//Loads a pacman from file
 int load_pacman_file(board_t* board, const char* filepath, int points) {
     debug("Loading Pacman file: %s\n", filepath);
     
@@ -460,9 +458,7 @@ int load_ghost(board_t* board) {
     return 0;
 }
 
-/**
- * Loads a ghost from file
- */
+// Loads a ghost from file
 int load_ghost_file(board_t* board, const char* filepath, int ghost_index) {
     debug("Loading Ghost %d from file: %s\n", ghost_index, filepath);
     char** tokens = read_file((char*)filepath, board, -1);
@@ -566,6 +562,7 @@ int load_level(board_t *board, int points) {
     return 0;
 }
 
+// Loads a level from file
 int load_level_file(board_t *board, const char *filepath, int max_files_to_load, int points) {
     (void)max_files_to_load; 
     

@@ -8,12 +8,15 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #define CONTINUE_PLAY 0
 #define NEXT_LEVEL 1
 #define QUIT_GAME 2
 #define LOAD_BACKUP 3
 #define CREATE_BACKUP 4
+#define EXIT_PACMAN_DIED 5
 
 void screen_refresh(board_t * game_board, int mode) {
     debug("REFRESH\n");
@@ -29,6 +32,10 @@ int play_board(board_t * game_board) {
     if (pacman->n_moves == 0) { // if is user input
         command_t c; 
         c.command = get_input();
+
+        if (c.command == 'G') {
+            return CREATE_BACKUP;
+        }
 
         if(c.command == '\0')
             return CONTINUE_PLAY;
@@ -77,7 +84,7 @@ int main(int argc, char** argv) {
     board_t game_board;
 
     memset(&game_board, 0, sizeof(board_t));
-    
+
     open_debug_file("debug.log");
 
     terminal_init();
@@ -134,6 +141,8 @@ int main(int argc, char** argv) {
 
     index_lp = 0;
 
+    bool has_backup = false;
+
     while (!end_game) {
         if (!automatic_mode) {
             if (index_lp >= cnt_lvl) {
@@ -152,25 +161,72 @@ int main(int argc, char** argv) {
         while(true) {
             int result = play_board(&game_board); 
 
-            if(result == NEXT_LEVEL) {
+            if (result == CREATE_BACKUP) {
+                if (!has_backup) {
+                    // cria backup
+                    pid_t pid = fork();
+
+                    if (pid < 0) {
+                        perror("Fork failed");
+                    } else if (pid == 0) {
+                        // Child process
+                        has_backup = true;
+                    } else {
+                        // Parent process
+                        int status;
+                        wait(&status);
+
+                        if (WIFEXITED(status)) {
+                            int exit_code = WEXITSTATUS(status);
+
+                            if (exit_code == EXIT_PACMAN_DIED) {
+                                debug("Pacman morreu no filho, restaurando...\n");
+                                screen_refresh(&game_board, DRAW_MENU);
+                                continue;
+                            } else {
+                                end_game = true;
+                                if (exit_code == NEXT_LEVEL) {
+                                    result = NEXT_LEVEL;
+                                } else if (exit_code == QUIT_GAME) {
+                                    result = QUIT_GAME;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                result = CONTINUE_PLAY; 
+            }
+
+            if (result == NEXT_LEVEL) {
                 accumulated_points = game_board.pacmans[0].points;
                 screen_refresh(&game_board, DRAW_WIN);
                 sleep_ms(2000);
+                if (has_backup) exit(QUIT_GAME);
                 break;
             }
 
-            if(result == QUIT_GAME) {
-                screen_refresh(&game_board, DRAW_GAME_OVER); 
-                sleep_ms(2000);
-                end_game = true;
-                break;
+            if (result == QUIT_GAME) {
+                if (!game_board.pacmans[0].alive) {
+                    if (has_backup) exit(EXIT_PACMAN_DIED);
+                    screen_refresh(&game_board, DRAW_GAME_OVER);
+                    sleep_ms(2000);
+                    end_game = true;
+                    break;
+                } else {
+                    if (has_backup) exit(QUIT_GAME);
+                    screen_refresh(&game_board, DRAW_GAME_OVER); 
+                    sleep_ms(2000);
+                    end_game = true;
+                    break;
+                }
             }
-    
-            screen_refresh(&game_board, DRAW_MENU); 
-            accumulated_points = game_board.pacmans[0].points;      
+
+            screen_refresh(&game_board, DRAW_MENU);
+            accumulated_points = game_board.pacmans[0].points;
         }
         unload_level(&game_board);
-    }    
+    }   
 
     if (lvl_paths) {
         for (int i = 0; i < cnt_lvl; i++) {
