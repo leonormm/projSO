@@ -210,6 +210,13 @@ int main(int argc, char** argv) {
                 sleep_ms(game_board.tempo);
             }
 
+            if (exit_reason == CONTINUE_PLAY) {
+                if (game_board.n_pacmans > 0 && game_board.pacmans[0].alive)
+                    exit_reason = NEXT_LEVEL;
+                else
+                    exit_reason = QUIT_GAME;
+            }
+
             if (game_board.n_pacmans > 0) pthread_join(pacman_tid, NULL);
             
             for (int i = 0; i < game_board.n_ghosts; i++) {
@@ -276,8 +283,11 @@ int main(int argc, char** argv) {
         } 
         else if (level_result == NEXT_LEVEL) {
             accumulated_points = game_board.pacmans[0].points;
-            screen_refresh(&game_board, DRAW_WIN);
-            sleep_ms(3000);
+            if (index_lp >= cnt_lvl) {
+                draw_board(&game_board, DRAW_WIN);
+                refresh_screen();
+                sleep_ms(2000);
+            }
             
             if (has_backup) {
                 exit(NEXT_LEVEL);
