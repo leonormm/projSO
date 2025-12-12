@@ -1,8 +1,0 @@
-DIM 6 6
-TEMPO 10
-WW WWW
-W P WW
-W W WW
-W    W
-WM   W
-WWWWWW
