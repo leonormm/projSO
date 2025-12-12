@@ -18,6 +18,62 @@
 #define CREATE_BACKUP 4
 #define EXIT_PACMAN_DIED 5
 
+typedef struct {
+    board_t *board;
+    int id;
+} thread_arg_t;
+
+void* pacman_task(void* arg) {
+    thread_arg_t *data = (thread_arg_t *)arg;
+    board_t *board = data->board;
+    int index = data->id;
+    pacman_t * pac = &board->pacmans[index];
+
+    while (board->game_running && pac->alive) {
+        command_t cmd;
+        cmd.turns = 1;
+
+        if (pac->n_moves > 0) {
+            cmd = pac->moves[pac->current_move % pac->n_moves];
+        } else {
+            char dir = pac->next_direction;
+            if (dir != '\0') {
+                cmd.command = dir;
+            } else {
+                cmd.command = '\0';
+            }
+        }
+
+        if (cmd.command != '\0') {
+            int result = move_pacman(board, index, &cmd);
+            if (result == REACHED_PORTAL) {
+                board->game_running = 0; // Stop the game loop
+                pthread_exit(NULL);
+            } 
+        }
+
+        sleep_ms(board->tempo);
+    }
+    free(data);
+    return NULL;
+}
+
+void* ghost_task(void* arg) {
+    thread_arg_t *data = (thread_arg_t*)arg;
+    board_t *board = data->board;
+    int index = data->id;
+    ghost_t * ghost = &board->ghosts[index];
+
+    while (board->game_running) {
+        command_t *cmd = &ghost->moves[ghost->current_move % ghost->n_moves];
+
+        move_ghost(board, index, cmd);
+        sleep_ms(board->tempo);
+    }
+    free(data);
+    return NULL;
+} 
+
 void screen_refresh(board_t * game_board, int mode) {
     debug("REFRESH\n");
     draw_board(game_board, mode);
@@ -104,13 +160,10 @@ int main(int argc, char** argv) {
         DIR *dirp = opendir(dirpath);
         if (dirp != NULL) {
             struct dirent *dp;
-            // First pass: count levels
             while ((dp = readdir(dirp)) != NULL) {
                 if (dp->d_name[0] == '.') continue;
                 const char *ext = strrchr(dp->d_name, '.');
-                if (ext && strcmp(ext, ".lvl") == 0) {
-                    cnt_lvl++;
-                }
+                if (ext && strcmp(ext, ".lvl") == 0) cnt_lvl++;
             }
             closedir(dirp);
 
@@ -123,26 +176,23 @@ int main(int argc, char** argv) {
             lvl_paths = malloc(cnt_lvl * sizeof(char*));
             dirp = opendir(dirpath);
             int idx = 0;
-            if (dirp != NULL) {
-                while ((dp = readdir(dirp)) != NULL && idx < cnt_lvl) {
-                    if (dp->d_name[0] == '.') continue;
-                    const char *ext = strrchr(dp->d_name, '.');
-                    if (ext && strcmp(ext, ".lvl") == 0) {
-                        size_t len = strlen(dirpath) + strlen(dp->d_name) + 2;
-                        char *path = malloc(len);
-                        sprintf(path, "%s/%s", dirpath, dp->d_name);
-                        lvl_paths[idx++] = path;
-                    }
+            while ((dp = readdir(dirp)) != NULL && idx < cnt_lvl) {
+                if (dp->d_name[0] == '.') continue;
+                const char *ext = strrchr(dp->d_name, '.');
+                if (ext && strcmp(ext, ".lvl") == 0) {
+                    char *path = malloc(strlen(dirpath) + strlen(dp->d_name) + 2);
+                    sprintf(path, "%s/%s", dirpath, dp->d_name);
+                    lvl_paths[idx++] = path;
                 }
-                closedir(dirp);
             }
+            closedir(dirp);
+            
         }
     }
 
     index_lp = 0;
-
-    bool has_backup = false;
-    bool save_used = false;
+    //bool has_backup = false;
+    //bool save_used = false;
 
     while (!end_game) {
         if (!automatic_mode) {
@@ -156,73 +206,72 @@ int main(int argc, char** argv) {
             end_game = true; 
         }
         
-        draw_board(&game_board, DRAW_MENU);
-        refresh_screen();
+        game_board.game_running = 1;
 
-        while(true) {
-            int result = play_board(&game_board); 
-
-            if (result == CREATE_BACKUP) {
-                if (!has_backup && !save_used) {
-                    // cria backup
-                    pid_t pid = fork();
-
-                    if (pid < 0) {
-                        perror("Fork failed");
-                    } else if (pid == 0) {
-                        // Child process
-                        has_backup = true;
-                    } else {
-                        // Parent process
-                        int status;
-                        wait(&status);
-
-                        if (WIFEXITED(status)) {
-                            int exit_code = WEXITSTATUS(status);
-
-                            if (exit_code == EXIT_PACMAN_DIED) {
-                                debug("Pacman morreu no filho, restaurando...\n");
-                                save_used = true;
-                                screen_refresh(&game_board, DRAW_MENU);
-                                continue;
-                            } else {
-                                exit(exit_code);
-                            }
-                        }
-                    }
-                }
-                result = CONTINUE_PLAY; 
-            }
-
-            if (result == NEXT_LEVEL) {
-                accumulated_points = game_board.pacmans[0].points;
-                screen_refresh(&game_board, DRAW_WIN);
-                sleep_ms(2000);
-                if (has_backup) exit(NEXT_LEVEL);
-                break;
-            }
-
-            if (result == QUIT_GAME) {
-                if (!game_board.pacmans[0].alive) {
-                    if (has_backup) exit(EXIT_PACMAN_DIED);
-                    screen_refresh(&game_board, DRAW_GAME_OVER);
-                    sleep_ms(2000);
-                    end_game = true;
-                    break;
-                } else {
-                    if (has_backup) exit(QUIT_GAME);
-                    screen_refresh(&game_board, DRAW_GAME_OVER); 
-                    sleep_ms(2000);
-                    end_game = true;
-                    break;
-                }
-            }
-
-            screen_refresh(&game_board, DRAW_MENU);
-            accumulated_points = game_board.pacmans[0].points;
+        if (game_board.n_pacmans > 0) {
+            thread_arg_t *arg = malloc(sizeof(thread_arg_t));
+            arg->board = &game_board;
+            arg->id = 0;
+            pthread_create(&game_board.pacmans[0].tid, NULL, pacman_task, arg);
         }
+
+        for (int i = 0; i < game_board.n_ghosts; i++) {
+            thread_arg_t *arg = malloc(sizeof(thread_arg_t));
+            arg->board = &game_board;
+            arg->id = i;
+            pthread_create(&game_board.ghosts[i].tid, NULL, ghost_task, arg);
+        }
+
+        int level_result = CONTINUE_PLAY;
+
+        while (game_board.game_running) {
+            char input = get_input();
+            if (input == 'Q') {
+                game_board.game_running = 0;
+                level_result = QUIT_GAME;
+            } else if (input == 'G') {
+                game_board.game_running = 0;
+                level_result = CREATE_BACKUP;
+            } else if (input != '\0' && game_board.n_pacmans > 0) {
+                game_board.pacmans[0].next_direction = input;
+            }
+
+            if (game_board.n_pacmans > 0 && !game_board.pacmans[0].alive) {
+                game_board.game_running = 0;
+                level_result = QUIT_GAME;
+            }
+
+            draw_board(&game_board, DRAW_MENU);
+            refresh_screen();
+
+            sleep_ms(game_board.tempo);
+        }
+
+        if (game_board.n_pacmans > 0) {
+            pthread_join(game_board.pacmans[0].tid, NULL);
+        }
+        for (int i = 0; i < game_board.n_ghosts; i++) {
+            pthread_join(game_board.ghosts[i].tid, NULL);
+        }
+
+        if (level_result == QUIT_GAME) {
+            if (game_board.n_pacmans > 0 && !game_board.pacmans[0].alive) {
+                draw_board(&game_board, DRAW_GAME_OVER);
+            } else {
+                draw_board(&game_board, DRAW_GAME_OVER);
+            }
+            refresh_screen();
+            sleep_ms(2000);
+            end_game = true;
+        } else {
+            accumulated_points = game_board.pacmans[0].points;
+            draw_board(&game_board, DRAW_WIN);
+            refresh_screen();
+            sleep_ms(2000);
+        }
+
         unload_level(&game_board);
-    }   
+    }
 
     if (lvl_paths) {
         for (int i = 0; i < cnt_lvl; i++) {
@@ -230,9 +279,7 @@ int main(int argc, char** argv) {
         }
         free(lvl_paths);
     }
-
     terminal_cleanup();
     close_debug_file();
-
     return 0;
 }
