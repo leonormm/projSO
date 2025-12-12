@@ -788,49 +788,6 @@ char* parse_line(board_t *board, char *line) {
     return NULL;
 }
 
-// Saves current board
-void save_board(board_t* board) {
-    pid_t pid = fork();
-
-    if (pid < 0) {
-        perror("Fork failed for saving board");
-        return;
-    }
-
-    if (pid == 0) {
-        int fd = open("saved_board.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
-        if (fd < 0) exit(EXIT_FAILURE);
-
-        char buffer[128];
-        int len = snprintf(buffer, sizeof(buffer), "DIM %d %d\n", board->width, board->height);
-        write(fd, buffer, len);
-        len = snprintf(buffer, sizeof(buffer), "TEMPO %d\n", board->tempo);
-        write(fd, buffer, len);
-
-        for (int y = 0; y < board->height; y++) {
-            for (int x = 0; x < board->width; x++) {
-                int idx = y * board->width + x;
-                char c = board->board[idx].content;
-                if (c == 'W') {
-                    buffer[x] = 'X';
-                } else if (board->board[idx].has_portal) {
-                    buffer[x] = '@';
-                } else if (board->board[idx].has_dot) {
-                    buffer[x] = 'o';
-                } else {
-                    buffer[x] = ' ';
-                }
-                write(fd, &c, 1);
-            }
-            write(fd, "\n", 1);
-        }
-        close(fd);
-        exit(EXIT_SUCCESS);
-    } else {
-        wait(NULL);
-    }
-}
-
 void unload_level(board_t * board) {
     if(board->board) {
         // DESTRUIR MUTEXES AO DESCARREGAR NÍVEL

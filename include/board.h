@@ -109,9 +109,6 @@ char* parse_line(board_t *board, char *line);
 /*Unloads levels loaded by load_level*/
 void unload_level(board_t * board);
 
-/*Saves current board*/
-void save_board(board_t* board);
-
 // DEBUG FILE
 
 /*Opens the debug file*/
