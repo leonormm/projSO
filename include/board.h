@@ -29,7 +29,6 @@ typedef struct {
     int current_move;
     int n_moves; // number of predefined moves, 0 if controlled by user, >0 if readed from level file
     int waiting;
-
     pthread_t tid;
     char next_direction;
 } pacman_t;
@@ -64,10 +63,10 @@ typedef struct {
     char pacman_file[256];  // file with pacman movements
     char ghosts_files[MAX_GHOSTS][256]; // files with monster movements
     int tempo;              // Duration of each play         
-    int current_board_line;
-    int board_line_count;
-    int cnt_moves;
-    volatile int game_running;
+    int current_board_line; // current line being processed when loading a level
+    int board_line_count;   // total number of lines in the level being loaded
+    int cnt_moves;          // number of moves
+    volatile int game_running; // flag to indicate if the game is running
 } board_t;
 
 /*Makes the current thread sleep for 'int milliseconds' miliseconds*/

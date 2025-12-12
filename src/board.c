@@ -17,10 +17,8 @@ FILE * debugfile;
 // Bloqueia dois mutexes numa ordem fixa (baseada no índice) para evitar Deadlocks
 static void lock_positions(board_t* board, int idx1, int idx2) {
     if (idx1 == idx2) {
-        // Se for a mesma posição, bloqueia apenas uma vez
         pthread_mutex_lock(&board->board[idx1].mutex);
     } else if (idx1 < idx2) {
-        // Bloqueia sempre o índice menor primeiro
         pthread_mutex_lock(&board->board[idx1].mutex);
         pthread_mutex_lock(&board->board[idx2].mutex);
     } else {
@@ -38,11 +36,10 @@ static void unlock_positions(board_t* board, int idx1, int idx2) {
 }
 
 
-// Função auxiliar privada para encontrar e matar o pacman numa posição específica
+// Helper private function to find and kill pacman at specific position
 static int find_and_kill_pacman(board_t* board, int new_x, int new_y) {
     for (int p = 0; p < board->n_pacmans; p++) {
         pacman_t* pac = &board->pacmans[p];
-        // Verifica se o pacman está vivo e nas coordenadas alvo
         if (pac->pos_x == new_x && pac->pos_y == new_y && pac->alive) {
             pac->alive = 0;
             kill_pacman(board, p);
@@ -52,12 +49,12 @@ static int find_and_kill_pacman(board_t* board, int new_x, int new_y) {
     return VALID_MOVE;
 }
 
-// Função auxiliar para obter o índice linear no array do tabuleiro
+// Helper private function for getting board position index
 static inline int get_board_index(board_t* board, int x, int y) {
     return y * board->width + x;
 }
 
-// Função auxiliar para verificar se a posição está dentro dos limites
+// Helper private function for checking valid position
 static inline int is_valid_position(board_t* board, int x, int y) {
     return (x >= 0 && x < board->width) && (y >= 0 && y < board->height); 
 }
@@ -71,14 +68,13 @@ void sleep_ms(int milliseconds) {
 
 int move_pacman(board_t* board, int pacman_index, command_t* command) {
     if (pacman_index < 0 || !board->pacmans[pacman_index].alive) {
-        return DEAD_PACMAN; // Pacman inválido ou morto
+        return DEAD_PACMAN; // Invalid or dead pacman
     }
 
     pacman_t* pac = &board->pacmans[pacman_index];
     int new_x = pac->pos_x;
     int new_y = pac->pos_y;
 
-    // Verifica se ainda está em tempo de espera (passo)
     if (pac->waiting > 0) {
         pac->waiting -= 1;
         return VALID_MOVE;
@@ -92,55 +88,58 @@ int move_pacman(board_t* board, int pacman_index, command_t* command) {
         direction = directions[rand() % 4];
     }
 
-    // Calcular nova posição
+    // Calculate new position based on direction
     switch (direction) {
-        case 'W': new_y--; break; // Cima
-        case 'S': new_y++; break; // Baixo
-        case 'A': new_x--; break; // Esquerda
-        case 'D': new_x++; break; // Direita
+        case 'W': // Up
+            new_y--;
+            break;
+        case 'S': // Down
+            new_y++;
+            break;
+        case 'A': // Left
+            new_x--;
+            break;
+        case 'D': // Right
+            new_x++;
+            break;
         case 'T': // Wait
-            // Lógica de turnos para movimento automático
             if (command->turns_left == 1) {
-                pac->current_move += 1; 
+                pac->current_move += 1; // move on
                 command->turns_left = command->turns;
-            } else {
-                command->turns_left -= 1;
             }
+            else command->turns_left -= 1;
             return VALID_MOVE;
         default:
-            return INVALID_MOVE; 
+            return INVALID_MOVE; // Invalid direction
     }
 
-    pac->current_move += 1; // Avança índice de movimento (para automático)
+    // Logic for the WASD movement
+    pac->current_move += 1;
 
-    // Verificar limites do mapa
+    // Check boundaries
     if (!is_valid_position(board, new_x, new_y)) {
         return INVALID_MOVE;
     }
 
-    int old_index = get_board_index(board, pac->pos_x, pac->pos_y);
     int new_index = get_board_index(board, new_x, new_y);
-
-    // --- ZONA CRÍTICA: INÍCIO ---
-    // Bloquear posições de origem e destino atomicamente
-    lock_positions(board, old_index, new_index);
-
+    int old_index = get_board_index(board, pac->pos_x, pac->pos_y);
     char target_content = board->board[new_index].content;
 
-    // Verificar Paredes
+    lock_positions(board, old_index, new_index);
+
+    // Check for walls
     if (target_content == 'W') {
         unlock_positions(board, old_index, new_index);
         return INVALID_MOVE;
     }
 
-    // Verificar Monstros
+    // Check for ghosts
     if (target_content == 'M') {
         kill_pacman(board, pacman_index); // Assume-se que temos o lock da posição atual
         unlock_positions(board, old_index, new_index);
         return DEAD_PACMAN;
     }
 
-    // Verificar Portal
     if (board->board[new_index].has_portal) {
         board->board[old_index].content = ' ';
         board->board[new_index].content = 'P';
@@ -150,39 +149,36 @@ int move_pacman(board_t* board, int pacman_index, command_t* command) {
         return REACHED_PORTAL;
     }
 
-    // Coletar pontos
+    // Collect points
     if (board->board[new_index].has_dot) {
         pac->points++;
         board->board[new_index].has_dot = 0;
     }
 
-    // Atualizar Tabuleiro e Pacman
     board->board[old_index].content = ' ';
     pac->pos_x = new_x;
     pac->pos_y = new_y;
     board->board[new_index].content = 'P';
 
     unlock_positions(board, old_index, new_index);
-    // --- ZONA CRÍTICA: FIM ---
 
     return VALID_MOVE;
 }
 
-// Helper para movimento "charged" (carregado) do fantasma
+// Helper private function for charged ghost movement in one direction
 static int move_ghost_charged_direction(board_t* board, ghost_t* ghost, char direction, int* new_x, int* new_y) {
     int x = ghost->pos_x;
     int y = ghost->pos_y;
     *new_x = x;
     *new_y = y;
     
-    // Macro para verificar cada célula no caminho com segurança (Thread-Safe)
     #define CHECK_CELL_SAFE(cx, cy) \
         int idx = get_board_index(board, cx, cy); \
         pthread_mutex_lock(&board->board[idx].mutex); \
         char t_content = board->board[idx].content; \
         if (t_content == 'W' || t_content == 'M') { \
             pthread_mutex_unlock(&board->board[idx].mutex); \
-            return VALID_MOVE; /* Para antes da colisão */ \
+            return VALID_MOVE;  \
         } \
         if (t_content == 'P') { \
             *new_x = cx; *new_y = cy; \
@@ -195,15 +191,13 @@ static int move_ghost_charged_direction(board_t* board, ghost_t* ghost, char dir
     switch (direction) {
         case 'W': // Cima
             if (y == 0) return INVALID_MOVE;
-            *new_y = 0; 
             for (int i = y - 1; i >= 0; i--) { 
                 CHECK_CELL_SAFE(x, i);
                 *new_y = i; 
             }
             break;
         case 'S': // Baixo
-            if (y == board->height - 1) return INVALID_MOVE;
-            *new_y = board->height - 1; 
+            if (y == board->height - 1) return INVALID_MOVE; 
             for (int i = y + 1; i < board->height; i++) { 
                 CHECK_CELL_SAFE(x, i);
                 *new_y = i; 
@@ -211,7 +205,6 @@ static int move_ghost_charged_direction(board_t* board, ghost_t* ghost, char dir
             break;
         case 'A': // Esquerda
             if (x == 0) return INVALID_MOVE;
-            *new_x = 0; 
             for (int j = x - 1; j >= 0; j--) { 
                 CHECK_CELL_SAFE(j, y);
                 *new_x = j; 
@@ -219,7 +212,6 @@ static int move_ghost_charged_direction(board_t* board, ghost_t* ghost, char dir
             break;
         case 'D': // Direita
             if (x == board->width - 1) return INVALID_MOVE;
-            *new_x = board->width - 1; 
             for (int j = x + 1; j < board->width; j++) { 
                 CHECK_CELL_SAFE(j, y);
                 *new_x = j; 
@@ -239,26 +231,28 @@ int move_ghost_charged(board_t* board, int ghost_index, char direction) {
     int new_x = x;
     int new_y = y;
 
-    ghost->charged = 0; // Descarrega
+    ghost->charged = 0; //uncharge
     int result = move_ghost_charged_direction(board, ghost, direction, &new_x, &new_y);
     if (result == INVALID_MOVE) {
+        debug("DEFAULT CHARGED MOVE - direction = %c\n", direction);
         return INVALID_MOVE;
     }
 
+    // Get board indices
     int old_index = get_board_index(board, ghost->pos_x, ghost->pos_y);
     int new_index = get_board_index(board, new_x, new_y);
 
-    // --- ZONA CRÍTICA: INÍCIO ---
-    // Atualizar posição final do fantasma
     lock_positions(board, old_index, new_index);
 
-    board->board[old_index].content = ' '; 
+    // Update board - clear old position (restore what was there)
+    board->board[old_index].content = ' '; // Or restore the dot if ghost was on one
+    // Update ghost position
     ghost->pos_x = new_x;
     ghost->pos_y = new_y;
+    // Update board - set new position
     board->board[new_index].content = 'M';
 
     unlock_positions(board, old_index, new_index);
-    // --- ZONA CRÍTICA: FIM ---
 
     return result;
 }
@@ -268,7 +262,7 @@ int move_ghost(board_t* board, int ghost_index, command_t* command) {
     int new_x = ghost->pos_x;
     int new_y = ghost->pos_y;
 
-    // Verificar espera (passo)
+    // check passo
     if (ghost->waiting > 0) {
         ghost->waiting -= 1;
         return VALID_MOVE;
@@ -282,64 +276,73 @@ int move_ghost(board_t* board, int ghost_index, command_t* command) {
         direction = directions[rand() % 4];
     }
 
+    // Calculate new position based on direction
     switch (direction) {
-        case 'W': new_y--; break;
-        case 'S': new_y++; break;
-        case 'A': new_x--; break;
-        case 'D': new_x++; break;
+        case 'W': // Up
+            new_y--;
+            break;
+        case 'S': // Down
+            new_y++;
+            break;
+        case 'A': // Left
+            new_x--;
+            break;
+        case 'D': // Right
+            new_x++;
+            break;
         case 'C': // Charge
             ghost->current_move += 1;
             ghost->charged = 1;
             return VALID_MOVE;
         case 'T': // Wait
             if (command->turns_left == 1) {
-                ghost->current_move += 1;
+                ghost->current_move += 1; // move on
                 command->turns_left = command->turns;
-            } else {
-                command->turns_left -= 1;
             }
+            else command->turns_left -= 1;
             return VALID_MOVE;
         default:
-            return INVALID_MOVE;
+            return INVALID_MOVE; // Invalid direction
     }
 
+    // Logic for the WASD movement
     ghost->current_move++;
     if (ghost->charged)
         return move_ghost_charged(board, ghost_index, direction);
 
-    // Verificar limites
+    // Check boundaries
     if (!is_valid_position(board, new_x, new_y)) {
         return INVALID_MOVE;
     }
 
+    // Check board position
     int new_index = get_board_index(board, new_x, new_y);
     int old_index = get_board_index(board, ghost->pos_x, ghost->pos_y);
-
-    // --- ZONA CRÍTICA: INÍCIO ---
-    lock_positions(board, old_index, new_index);
-
     char target_content = board->board[new_index].content;
 
-    // Colisão com Parede ou Outro Monstro
+    lock_positions(board, old_index, new_index);
+
+    // Check for walls and ghosts
     if (target_content == 'W' || target_content == 'M') {
         unlock_positions(board, old_index, new_index);
         return INVALID_MOVE;
     }
 
     int result = VALID_MOVE;
-    // Colisão com Pacman
+    // Check for pacman
     if (target_content == 'P') {
         result = find_and_kill_pacman(board, new_x, new_y);
     }
 
-    // Atualizar Tabuleiro
-    board->board[old_index].content = ' ';
+    // Update board - clear old position (restore what was there)
+    board->board[old_index].content = ' '; // Or restore the dot if ghost was on one
+    // Update ghost position
     ghost->pos_x = new_x;
     ghost->pos_y = new_y;
+    // Update board - set new position
     board->board[new_index].content = 'M';
 
     unlock_positions(board, old_index, new_index);
-    // --- ZONA CRÍTICA: FIM ---
 
     return result;
 }
@@ -349,11 +352,10 @@ void kill_pacman(board_t* board, int pacman_index) {
     pacman_t* pac = &board->pacmans[pacman_index];
     int index = pac->pos_y * board->width + pac->pos_x;
 
-    // Remover pacman do tabuleiro
-    // Nota: O mutex desta posição já deve estar trancado pela função que chamou (move_*)
+    // Remove pacman from the board
     board->board[index].content = ' ';
 
-    // Marcar como morto
+    // Mark pacman as dead
     pac->alive = 0;
 }
 
@@ -547,7 +549,6 @@ int load_level(board_t *board, int points) {
 
     board->board = calloc(board->width * board->height, sizeof(board_pos_t));
     
-    // INICIALIZAR MUTEXES (PARA MODO ESTÁTICO)
     for (int i = 0; i < board->width * board->height; i++) {
         pthread_mutex_init(&board->board[i].mutex, NULL);
     }
@@ -653,7 +654,6 @@ char** read_file(char* filepath, board_t *board, int max_files_to_load) {
     file_content[total_read] = '\0';
     close(fd);
 
-    // If Level Mode
     if (max_files_to_load != -1) {
         board->current_board_line = 0;
         char *saveptr;
@@ -667,7 +667,7 @@ char** read_file(char* filepath, board_t *board, int max_files_to_load) {
         free(file_content);
         return NULL;
     } 
-    // If Creature Mode
+    
     else {
         board->cnt_moves = 0;
         size_t tokens_cap = 64;
@@ -737,7 +737,6 @@ char* parse_line(board_t *board, char *line) {
         sscanf(line + 3, "%d %d", &board->width, &board->height);
         board->board = calloc(board->width * board->height, sizeof(board_pos_t));
         
-        // INICIALIZAR MUTEXES (PARA MODO FICHEIRO)
         for (int i = 0; i < board->width * board->height; i++) {
             pthread_mutex_init(&board->board[i].mutex, NULL);
         }
@@ -790,7 +789,6 @@ char* parse_line(board_t *board, char *line) {
 
 void unload_level(board_t * board) {
     if(board->board) {
-        // DESTRUIR MUTEXES AO DESCARREGAR NÍVEL
         for (int i = 0; i < board->width * board->height; i++) {
             pthread_mutex_destroy(&board->board[i].mutex);
         }
@@ -826,6 +824,7 @@ void print_board(board_t *board) {
         return;
     }
 
+    // Large buffer to accumulate the whole output
     char buffer[8192];
     size_t offset = 0;
 

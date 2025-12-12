@@ -7,12 +7,6 @@ Reading file: dir/1.p (Mode: -1)
 Failed to read pacman file, loading default.
 Loading Ghost 0 from file: dir/1.m
 Reading file: dir/1.m (Mode: -1)
-Killing 0 pacman
-
-Pacman morreu no filho. Restaurando estado...
-Killing 0 pacman
-
-Pacman morreu no filho. Restaurando estado...
 Loading level from file: dir/ola.lvl
 Reading file: dir/ola.lvl (Mode: 1)
 Level structure read. Pacman file: 1.p, Ghosts: 2
