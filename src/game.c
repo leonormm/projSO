@@ -277,7 +277,7 @@ int main(int argc, char** argv) {
         else if (level_result == NEXT_LEVEL) {
             accumulated_points = game_board.pacmans[0].points;
             screen_refresh(&game_board, DRAW_WIN);
-            sleep_ms(2000);
+            sleep_ms(3000);
             
             if (has_backup) {
                 exit(NEXT_LEVEL);
