@@ -99,11 +99,18 @@ int load_level(board_t* board, int accumulated_points);
 
 /*Loads level from a file*/
 int load_level_file(board_t *board, const char *filepath, int max_files_to_load, int points);
+
+/*Reads input from a file*/
 char** read_file(char* filepath, board_t *board, int max_files_to_load);
+
+/*Parses line in a file*/
 char* parse_line(board_t *board, char *line);
 
 /*Unloads levels loaded by load_level*/
 void unload_level(board_t * board);
+
+/*Saves current board*/
+void save_board(board_t* board);
 
 // DEBUG FILE
 

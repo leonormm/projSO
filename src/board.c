@@ -14,8 +14,6 @@
 
 FILE * debugfile;
 
-// === FUNÇÕES AUXILIARES DE SINCRONIZAÇÃO (MUTEXES) ===
-
 // Bloqueia dois mutexes numa ordem fixa (baseada no índice) para evitar Deadlocks
 static void lock_positions(board_t* board, int idx1, int idx2) {
     if (idx1 == idx2) {
@@ -39,10 +37,8 @@ static void unlock_positions(board_t* board, int idx1, int idx2) {
     }
 }
 
-// === LÓGICA DO JOGO ===
 
 // Função auxiliar privada para encontrar e matar o pacman numa posição específica
-// NOTA: Assume que o trinco da posição (new_x, new_y) JÁ está bloqueado por quem chama
 static int find_and_kill_pacman(board_t* board, int new_x, int new_y) {
     for (int p = 0; p < board->n_pacmans; p++) {
         pacman_t* pac = &board->pacmans[p];
@@ -540,6 +536,7 @@ int load_ghost_file(board_t* board, const char* filepath, int ghost_index) {
     return 0;
 }
 
+// Static Loading
 int load_level(board_t *board, int points) {
     board->height = 5;
     board->width = 10;
@@ -582,6 +579,7 @@ int load_level(board_t *board, int points) {
     return 0;
 }
 
+// Loads level from a file
 int load_level_file(board_t *board, const char *filepath, int max_files_to_load, int points) {
     (void)max_files_to_load; 
     
@@ -619,6 +617,7 @@ int load_level_file(board_t *board, const char *filepath, int max_files_to_load,
     return 0;
 }
 
+// Reads a file and parses it into the board structure or tokens
 char** read_file(char* filepath, board_t *board, int max_files_to_load) {
     debug("Reading file: %s (Mode: %d)\n", filepath, max_files_to_load);
     
@@ -732,6 +731,7 @@ char** read_file(char* filepath, board_t *board, int max_files_to_load) {
     }
 }
 
+// Parses a single line from the level file
 char* parse_line(board_t *board, char *line) {
     if (strncmp(line, "DIM", 3) == 0) {
         sscanf(line + 3, "%d %d", &board->width, &board->height);
@@ -786,6 +786,49 @@ char* parse_line(board_t *board, char *line) {
         }
     }
     return NULL;
+}
+
+// Saves current board
+void save_board(board_t* board) {
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        perror("Fork failed for saving board");
+        return;
+    }
+
+    if (pid == 0) {
+        int fd = open("saved_board.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd < 0) exit(EXIT_FAILURE);
+
+        char buffer[128];
+        int len = snprintf(buffer, sizeof(buffer), "DIM %d %d\n", board->width, board->height);
+        write(fd, buffer, len);
+        len = snprintf(buffer, sizeof(buffer), "TEMPO %d\n", board->tempo);
+        write(fd, buffer, len);
+
+        for (int y = 0; y < board->height; y++) {
+            for (int x = 0; x < board->width; x++) {
+                int idx = y * board->width + x;
+                char c = board->board[idx].content;
+                if (c == 'W') {
+                    buffer[x] = 'X';
+                } else if (board->board[idx].has_portal) {
+                    buffer[x] = '@';
+                } else if (board->board[idx].has_dot) {
+                    buffer[x] = 'o';
+                } else {
+                    buffer[x] = ' ';
+                }
+                write(fd, &c, 1);
+            }
+            write(fd, "\n", 1);
+        }
+        close(fd);
+        exit(EXIT_SUCCESS);
+    } else {
+        wait(NULL);
+    }
 }
 
 void unload_level(board_t * board) {

@@ -39,6 +39,7 @@ void* pacman_task(void* arg) {
             char dir = pac->next_direction;
             if (dir != '\0') {
                 cmd.command = dir;
+                pac->next_direction = '\0';
             } else {
                 cmd.command = '\0';
             }
@@ -255,11 +256,14 @@ int main(int argc, char** argv) {
         }
 
         if (level_result == QUIT_GAME) {
-            if (game_board.n_pacmans > 0 && !game_board.pacmans[0].alive) {
-                draw_board(&game_board, DRAW_GAME_OVER);
-            } else {
-                draw_board(&game_board, DRAW_GAME_OVER);
-            }
+            draw_board(&game_board, DRAW_GAME_OVER);
+            refresh_screen();
+            sleep_ms(2000);
+            end_game = true;
+        } else if (level_result == CREATE_BACKUP) {
+            save_board(&game_board);
+            clear();
+            mvprintw(game_board.height / 2, (game_board.width / 2) - 7, "Game Saved!");
             refresh_screen();
             sleep_ms(2000);
             end_game = true;
