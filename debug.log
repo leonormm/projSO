@@ -4,17 +4,8 @@ Reading file: dir/1.lvl (Mode: 1)
 Level structure read. Pacman file: 1.p, Ghosts: 1
 Loading Pacman file: dir/1.p
 Reading file: dir/1.p (Mode: -1)
-Failed to read pacman file, loading default.
+Pacman loaded at (3,1) with 8 moves.
 Loading Ghost 0 from file: dir/1.m
 Reading file: dir/1.m (Mode: -1)
-Loading level from file: dir/ola.lvl
-Reading file: dir/ola.lvl (Mode: 1)
-Level structure read. Pacman file: 1.p, Ghosts: 2
-Loading Pacman file: dir/1.p
-Reading file: dir/1.p (Mode: -1)
-Failed to read pacman file, loading default.
-Loading Ghost 0 from file: dir/1.m
-Reading file: dir/1.m (Mode: -1)
-Loading Ghost 1 from file: dir/2.m
-Reading file: dir/2.m (Mode: -1)
-Failed to read ghost file. Using fallback.
+Killing 0 pacman
+

@@ -32,23 +32,26 @@ void* pacman_task(void* arg) {
     pacman_t * pac = &board->pacmans[index];
 
     while (board->game_running && pac->alive) {
-        command_t cmd;
-        cmd.turns = 1;
+        command_t *cmd_ptr = NULL;
+        command_t cmd_manual;
 
         if (pac->n_moves > 0) {
-            cmd = pac->moves[pac->current_move % pac->n_moves];
+            cmd_ptr = &pac->moves[pac->current_move % pac->n_moves];
         } else {
+            cmd_manual.turns = 1;
+            cmd_manual.turns_left = 0;
             char dir = pac->next_direction;
             if (dir != '\0') {
-                cmd.command = dir;
+                cmd_manual.command = dir;
                 pac->next_direction = '\0'; // Consome o comando
             } else {
-                cmd.command = '\0';
+                cmd_manual.command = '\0';
             }
+            cmd_ptr = &cmd_manual;
         }
 
-        if (cmd.command != '\0') {
-            int result = move_pacman(board, index, &cmd);
+        if (cmd_ptr->command != '\0') {
+            int result = move_pacman(board, index, cmd_ptr);
             if (result == REACHED_PORTAL) {
                 board->game_running = 0;
             } 
